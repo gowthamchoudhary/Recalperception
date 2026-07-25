@@ -4,6 +4,7 @@ import {
   serial,
   integer,
   timestamp,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -35,6 +36,12 @@ export const videosTable = pgTable("videos", {
   // Free-text "don't process this" request captured at upload time; folded
   // into every privacy scan for this video (including manual rescans).
   privacyRequest: text("privacy_request"),
+  // False when spoken-word indexing found no speech (silent clips, screen
+  // recordings, music-only). Internal flag — absence of speech is normal.
+  hasTranscript: boolean("has_transcript").notNull().default(true),
+  // VideoDB scene index used by the privacy scan; lets us re-read scene
+  // descriptions without paying for a fresh indexing pass.
+  sceneIndexId: text("scene_index_id"),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({

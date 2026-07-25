@@ -1,0 +1,22 @@
+Three fixes needed in the upload/processing pipeline.
+
+1. Fix duplicate flagging — scan per video, not per scene
+
+Right now the privacy scan is flagging every individual scene that matches a category, so one video with multiple matching-ish scenes creates multiple separate review-queue entries for the same video (e.g. 58 videos produced 70 review items). This is wrong on two counts: it floods the review queue with duplicates, and scanning every scene independently increases the odds of a low-confidence, contradictory flag (matching the earlier bug where the flag reason contradicted its own description).
+
+Fix: scan a video's scenes in sequence, and stop at the first confident match per category. Once a video is confirmed to match a category (baseline or user's custom request), flag it once for that video with that one clear reason, and move on to the next video — don't keep scanning the rest of that video's scenes once a match is confirmed. A video should appear in the review queue at most once per distinct matched category, never multiple times for the same category.
+
+2. Fix silent-video failures
+
+When VideoDB's spoken-word indexing returns "no spoken data found" for a video with no speech (silent clips, screen recordings, music-only footage), the whole video is currently marked FAILED. This is wrong — audio and visual indexing are independent steps, and failure of one must not fail the other.
+
+Catch "no spoken data / language detection failed" as an expected, non-fatal outcome.
+Skip spoken-word indexing for that video, continue scene indexing normally, mark it INDEXED once scene indexing completes, with an internal flag noting it has no transcript.
+Only mark a video FAILED for genuine failures — corrupted file, unsupported format, upload failure, or scene indexing itself failing.
+
+3. Background processing survives tab close, plus cancel
+
+Investigate whether any part of the current upload/indexing flow is client-driven rather than fully server-side. If closing the tab kills in-progress uploads, that's the root cause — fix it so the server owns the job once started, independent of the browser.
+Batch upload hands off to a server-side job queue immediately; closing the tab, navigating away, or refreshing must not stop or corrupt in-progress work.
+Returning later (same session) shows the true current state of every queued/processing video.
+Add a cancel button per video and for the whole batch, that actually stops server-side processing and removes it cleanly.

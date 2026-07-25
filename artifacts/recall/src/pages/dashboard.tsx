@@ -23,6 +23,7 @@ import {
   useResolveReviewItem,
   useGetStats,
   useUploadVideo,
+  useDeleteVideo,
   getListVideosQueryKey,
   getListReviewItemsQueryKey,
   getGetStatsQueryKey,
@@ -72,10 +73,12 @@ type BatchItem = {
   url?: string;
   label: string;
   sizeLabel?: string;
-  status: "queued" | "uploading" | "done" | "error";
+  status: "queued" | "uploading" | "done" | "error" | "cancelled";
   error?: string;
   /** Pre-marked as not uploadable (e.g. over the size cap) — never sent. */
   skipped?: boolean;
+  /** Server-side video id, once the upload was accepted (202). */
+  videoId?: number;
 };
 
 /**
@@ -104,6 +107,9 @@ export default function Dashboard() {
   const [privacyRequest, setPrivacyRequest] = useState("");
   const [isBatchRunning, setIsBatchRunning] = useState(false);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const [isCancellingBatch, setIsCancellingBatch] = useState(false);
+  const cancelBatchRef = useRef(false);
+  const [cancellingIds, setCancellingIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -130,7 +136,30 @@ export default function Dashboard() {
   const { data: stats } = useGetStats();
 
   const uploadVideo = useUploadVideo();
+  const deleteVideo = useDeleteVideo();
   const resolveReview = useResolveReviewItem();
+
+  /**
+   * Cancel = delete: processing is fully server-side, so removing the row
+   * tells the pipeline to stop at its next stage boundary and clean up.
+   */
+  const cancelVideo = (id: number) => {
+    setCancellingIds((prev) => new Set(prev).add(id));
+    deleteVideo.mutate(
+      { id },
+      {
+        onSettled: () => {
+          setCancellingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          queryClient.invalidateQueries({ queryKey: getListVideosQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+        },
+      },
+    );
+  };
 
   // When ingestion finishes (processing -> indexed/flagged/failed), refresh
   // the review queue and stats once more so nothing is left stale.
@@ -247,25 +276,31 @@ export default function Dashboard() {
     if (queued.length === 0 || isBatchRunning) return;
     setIsBatchRunning(true);
     setUploadNote(null);
+    cancelBatchRef.current = false;
+    setIsCancellingBatch(false);
     const pr = privacyRequest.trim();
     const queue = [...queued];
     const setItem = (key: string, patch: Partial<BatchItem>) =>
       setBatch((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
     let failures = 0;
+    const uploaded: Array<{ key: string; id: number }> = [];
 
     const worker = async () => {
       for (;;) {
+        // Stop picking up new work once the batch is cancelled.
+        if (cancelBatchRef.current) return;
         const item = queue.shift();
         if (!item) return;
         setItem(item.key, { status: "uploading" });
         try {
-          await uploadVideo.mutateAsync({
+          const created = await uploadVideo.mutateAsync({
             data: {
               ...(item.kind === "file" ? { file: item.file! } : { url: item.url! }),
               ...(pr ? { privacyRequest: pr } : {}),
             },
           });
-          setItem(item.key, { status: "done" });
+          uploaded.push({ key: item.key, id: created.id });
+          setItem(item.key, { status: "done", videoId: created.id });
         } catch (err) {
           failures += 1;
           setItem(item.key, { status: "error", error: apiErrorMessage(err) });
@@ -279,6 +314,33 @@ export default function Dashboard() {
     await Promise.all(
       [...Array(Math.min(UPLOAD_CONCURRENCY, queue.length))].map(() => worker()),
     );
+
+    if (cancelBatchRef.current) {
+      // Remove everything this batch already created server-side; the
+      // pipeline notices the deletion and stops cleanly.
+      const results = await Promise.allSettled(
+        uploaded.map(({ id }) => deleteVideo.mutateAsync({ id })),
+      );
+      const removed = results.filter((r) => r.status === "fulfilled").length;
+      const uploadedKeys = new Set(uploaded.map((u) => u.key));
+      setBatch((prev) =>
+        prev.map((i) =>
+          i.status === "queued" || (i.status === "done" && uploadedKeys.has(i.key))
+            ? { ...i, status: "cancelled" as const, error: undefined }
+            : i,
+        ),
+      );
+      queryClient.invalidateQueries({ queryKey: getListVideosQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+      setUploadNote(
+        `Batch cancelled — ${removed} upload${removed === 1 ? "" : "s"} removed, nothing kept.`,
+      );
+      cancelBatchRef.current = false;
+      setIsCancellingBatch(false);
+      setIsBatchRunning(false);
+      return;
+    }
+
     setIsBatchRunning(false);
     // Only auto-close on FULL success — no failed uploads and no skipped
     // rows the user might not have noticed (e.g. files over the size cap).
@@ -318,7 +380,9 @@ export default function Dashboard() {
 
   const queuedCount = batch.filter((i) => i.status === "queued").length;
   const doneCount = batch.filter((i) => i.status === "done").length;
-  const activeTotal = batch.filter((i) => !i.skipped).length;
+  const activeTotal = batch.filter(
+    (i) => !i.skipped && i.status !== "cancelled",
+  ).length;
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background relative pb-20">
@@ -435,11 +499,27 @@ export default function Dashboard() {
                             : "Failed"}
                       </div>
                     )}
-                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70">
-                        <Edit2 className="w-4 h-4" />
+                    {video.status === "processing" ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          cancelVideo(video.id);
+                        }}
+                        disabled={cancellingIds.has(video.id)}
+                        title="Stop processing and remove this video"
+                        data-testid={`cancel-video-${video.id}`}
+                        className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/60 backdrop-blur-md text-white hover:bg-red-600 transition-colors disabled:opacity-60"
+                      >
+                        {cancellingIds.has(video.id) ? "Cancelling…" : "Cancel"}
+                      </button>
+                    ) : (
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70">
+                          <Edit2 className="w-4 h-4" />
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {video.durationSeconds > 0 && (
                       <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md text-[10px] font-mono font-bold text-white">
                         {Math.floor(video.durationSeconds / 60)}:{(video.durationSeconds % 60).toString().padStart(2, "0")}
@@ -678,6 +758,11 @@ export default function Dashboard() {
                         )}
                         {item.status === "done" && <Check className="w-4 h-4 text-accent" />}
                         {item.status === "error" && <AlertCircle className="w-4 h-4 text-red-600" />}
+                        {item.status === "cancelled" && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Cancelled
+                          </span>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -722,20 +807,43 @@ export default function Dashboard() {
                     ? `${queuedCount} video${queuedCount === 1 ? "" : "s"} ready`
                     : "Nothing queued yet"}
               </p>
-              <Button
-                onClick={startBatch}
-                disabled={queuedCount === 0 || isBatchRunning}
-                className="rounded-xl font-bold px-8 h-12 shadow-sm"
-                data-testid="start-batch"
-              >
-                {isBatchRunning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…
-                  </>
-                ) : (
-                  <>Upload {queuedCount > 0 ? queuedCount : ""} video{queuedCount === 1 ? "" : "s"}</>
+              <div className="flex items-center gap-3">
+                {isBatchRunning && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      cancelBatchRef.current = true;
+                      setIsCancellingBatch(true);
+                    }}
+                    disabled={isCancellingBatch}
+                    className="rounded-xl font-bold h-12"
+                    data-testid="cancel-batch"
+                  >
+                    {isCancellingBatch ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Cancelling…
+                      </>
+                    ) : (
+                      "Cancel batch"
+                    )}
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  onClick={startBatch}
+                  disabled={queuedCount === 0 || isBatchRunning}
+                  className="rounded-xl font-bold px-8 h-12 shadow-sm"
+                  data-testid="start-batch"
+                >
+                  {isBatchRunning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…
+                    </>
+                  ) : (
+                    <>Upload {queuedCount > 0 ? queuedCount : ""} video{queuedCount === 1 ? "" : "s"}</>
+                  )}
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
