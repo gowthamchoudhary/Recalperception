@@ -1,0 +1,31 @@
+Rework the landing page layout and component styling. Four parts:
+
+1. Fit the hero + preview panel into one above-the-fold view
+Right now at 100% zoom, the dark app-preview panel (search bar + video thumbnails) sits below the visible viewport — the user has to scroll to see it. Compress vertical spacing (headline size, subhead margin, pill spacing, CTA spacing) so the headline, CTA row, AND the top portion of the preview panel are all visible together in a standard 100% zoom viewport (~900px tall) with no scroll required. The preview panel should feel like it's the payoff the CTA leads directly into, not a separate section you have to scroll to find.
+
+2. Rebuild the button style to this exact spec (applies to all primary buttons, any color)
+
+Fill: linear gradient, 0% 
+#414141 → 100% 
+#030303 (for dark/black buttons). For a white/light variant, invert to 0% 
+#FFFFFF → 100% 
+#E8E8E8.
+Stroke: linear gradient border, 0% 
+#313131 → 25% 
+#575757 → 100% 
+#1C1C1C (glossy edge highlight effect; light variant inverts similarly).
+Left side: an inset icon chip — small white (or black, for the light variant) rounded-square with the icon/arrow inside, sitting inside the button, not a plain inline icon.
+Shadow: soft drop shadow, 90° angle (straight down), ~18% opacity, blur ~111px, spread ~15%, color 
+#000000.
+This exact style should be reusable as one Button component that adapts fill/stroke direction based on a variant="dark"|"light" prop — same glossy/inset-chip construction either way, just inverted tones.
+
+3. Modernize the search bar and upload dropzone
+Apply the same gradient-fill + gradient-stroke treatment (not flat white) to the search input and the upload dropzone border — subtle light-gray gradient fill, soft gradient stroke, so they feel like they belong to the same glossy/modern system as the buttons, not flat default inputs.
+
+4. Stitched dashed borders on video/photo cards
+Replace solid card borders with a dashed/stitched border treatment on the floating video-thumbnail cards — should read like scrapbook/stitched-photo edges, not a plain CSS dashed border. Use an SVG border pattern with rounded dash caps and consistent spacing to sell the "stitched" look properly, not the default browser dashed-border rendering.
+
+5. Sticky nav → floating curved pill on scroll
+On scroll, the top nav should transition from full-width flat bar into a centered, floating pill-shaped bar with rounded corners, slight margin from the top edge, and a soft shadow — smooth transition, not an abrupt swap.
+
+Keep the floating cards' existing content (transcript quote, waveform, extracted tags) as-is — that part's working, just make sure it stays legible and doesn't get lost once everything else is compressed to fit one viewport.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { LogOut } from "lucide-react";
 import { useCurrentUser, useLogoutAction } from "@/lib/auth";
@@ -57,44 +57,81 @@ function UserMenu() {
 
 export function Navbar({ variant = "public" }: { variant?: "public" | "app" }) {
   const [location] = useLocation();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  /* Pill mode — floated, centered, with rounded corners and shadow */
+  const pillStyle = scrolled
+    ? {
+        margin: "12px auto",
+        maxWidth: "720px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        borderRadius: "9999px",
+        padding: "0 20px",
+        background: "rgba(244,244,242,0.92)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        boxShadow: "0 4px 24px -4px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.07)",
+      }
+    : {};
 
   return (
-    <nav className="w-full flex items-center justify-between px-6 md:px-10 py-5 fixed top-0 z-50 bg-background/50 backdrop-blur-xl border-b border-transparent">
-       <Link href={variant === "public" ? "/" : "/dashboard"} className="flex items-center gap-2 group">
-         <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center group-hover:scale-105 transition-transform">
-            <div className="w-2 h-2 bg-accent rounded-sm" />
-         </div>
-         <span className="font-bold text-xl tracking-tight leading-none mb-0.5">recall</span>
-       </Link>
+    <nav
+      className="w-full flex items-center justify-between px-6 md:px-10 py-4 fixed top-0 z-50 transition-all duration-300"
+      style={scrolled ? pillStyle : { background: "transparent" }}
+    >
+      <Link href={variant === "public" ? "/" : "/dashboard"} className="flex items-center gap-2 group">
+        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="w-2 h-2 bg-accent rounded-sm" />
+        </div>
+        <span className="font-bold text-xl tracking-tight leading-none mb-0.5">recall</span>
+      </Link>
 
-       {variant === "public" ? (
-         <div className="hidden md:flex items-center gap-8 text-sm font-medium">
-           <Link href="/search" className="text-muted-foreground hover:text-primary transition-colors">Search</Link>
-           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Library</Link>
-           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
-           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
-         </div>
-       ) : (
-         <div className="hidden md:flex items-center gap-8 text-sm font-medium">
-           <Link href="/dashboard" className={location === "/dashboard" ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Library</Link>
-           <Link href="/search" className={location.startsWith("/search") ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Search</Link>
-           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
-           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
-         </div>
-       )}
+      {variant === "public" ? (
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium">
+          <Link href="/search" className="text-muted-foreground hover:text-primary transition-colors">Search</Link>
+          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Library</Link>
+          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
+          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
+        </div>
+      ) : (
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium">
+          <Link href="/dashboard" className={location === "/dashboard" ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Library</Link>
+          <Link href="/search" className={location.startsWith("/search") ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Search</Link>
+          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
+          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
+        </div>
+      )}
 
-       <div className="flex items-center gap-3">
-         {variant === "public" ? (
-           <>
-             <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4 mx-2">Log in</Link>
-             <Link href="/login" className="bg-primary text-primary-foreground h-10 px-5 rounded-full inline-flex items-center justify-center text-sm font-medium hover:bg-primary/90 transition-colors">
-               Get started
-             </Link>
-           </>
-         ) : (
-           <UserMenu />
-         )}
-       </div>
+      <div className="flex items-center gap-3">
+        {variant === "public" ? (
+          <>
+            <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4 mx-2">Log in</Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 h-10 px-5 rounded-full font-semibold text-sm transition-all hover:scale-[1.03] active:scale-95"
+              style={{
+                background: "linear-gradient(180deg,#414141,#030303) padding-box,linear-gradient(180deg,#575757 0%,#313131 25%,#1C1C1C 100%) border-box",
+                border: "1.5px solid transparent",
+                color: "#fff",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
+              }}
+            >
+              Get started
+            </Link>
+          </>
+        ) : (
+          <UserMenu />
+        )}
+      </div>
     </nav>
-  )
+  );
 }
