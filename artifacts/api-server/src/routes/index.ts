@@ -6,6 +6,7 @@ import searchRouter from "./search";
 import reviewRouter from "./review";
 import peopleRouter from "./people";
 import statsRouter from "./stats";
+import sourcesRouter from "./sources";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -21,5 +22,6 @@ router.use(searchRouter);
 router.use(reviewRouter);
 router.use(peopleRouter);
 router.use(statsRouter);
+router.use(sourcesRouter);
 
 export default router;

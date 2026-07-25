@@ -15,6 +15,8 @@ import {
   Link2,
   Loader2,
   FolderOpen,
+  Image as ImageIcon,
+  Youtube,
 } from "lucide-react";
 import {
   useListVideos,
@@ -23,12 +25,14 @@ import {
   useGetStats,
   useUploadVideo,
   useDeleteVideo,
+  useImportPhotosItem,
   getListVideosQueryKey,
   getListReviewItemsQueryKey,
   getGetStatsQueryKey,
 } from "@workspace/api-client-react";
 import { Button, Card } from "@/components/ui";
 import { VideoActions } from "@/components/video-actions";
+import { SourceButtons, type PhotosPick, type YoutubePick } from "@/components/source-pickers";
 import { useQueryClient } from "@tanstack/react-query";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB (matches the API limit)
@@ -68,9 +72,12 @@ function formatBytes(bytes: number): string {
 
 type BatchItem = {
   key: string;
-  kind: "file" | "url";
+  kind: "file" | "url" | "photos";
   file?: File;
   url?: string;
+  /** Google Photos picker refs (kind === "photos"). */
+  sessionId?: string;
+  itemId?: string;
   label: string;
   sizeLabel?: string;
   status: "queued" | "uploading" | "done" | "error" | "cancelled";
@@ -136,6 +143,7 @@ export default function Dashboard() {
   const { data: stats } = useGetStats();
 
   const uploadVideo = useUploadVideo();
+  const importPhotosItem = useImportPhotosItem();
   const deleteVideo = useDeleteVideo();
   const resolveReview = useResolveReviewItem();
 
@@ -263,6 +271,54 @@ export default function Dashboard() {
     );
   };
 
+  /** Add videos picked in the Google Photos Picker to the same batch. */
+  const addPhotosPicks = (items: PhotosPick[]) => {
+    setBatch((prev) => {
+      const seen = new Set(prev.map((i) => (i.kind === "photos" ? i.itemId ?? "" : "")));
+      const next = [...prev];
+      let added = 0;
+      for (const p of items) {
+        if (seen.has(p.itemId)) continue;
+        seen.add(p.itemId);
+        added += 1;
+        next.push({
+          key: `photos:${p.itemId}:${Math.random().toString(36).slice(2)}`,
+          kind: "photos",
+          sessionId: p.sessionId,
+          itemId: p.itemId,
+          label: p.filename,
+          status: "queued",
+        });
+      }
+      if (added > 0) {
+        setUploadNote(null);
+      }
+      return next;
+    });
+  };
+
+  /** Add selected own-channel YouTube videos to the same batch (as URLs). */
+  const addYoutubePicks = (items: YoutubePick[]) => {
+    setBatch((prev) => {
+      const seen = new Set(prev.map((i) => (i.kind === "url" ? i.url ?? "" : "")));
+      const next = [...prev];
+      for (const v of items) {
+        const url = `https://www.youtube.com/watch?v=${v.videoId}`;
+        if (seen.has(url)) continue;
+        seen.add(url);
+        next.push({
+          key: `yt:${v.videoId}:${Math.random().toString(36).slice(2)}`,
+          kind: "url",
+          url,
+          label: v.title,
+          status: "queued",
+        });
+      }
+      return next;
+    });
+    setUploadNote(null);
+  };
+
   const removeItem = (key: string) => {
     setBatch((prev) => prev.filter((i) => i.key !== key));
   };
@@ -293,12 +349,21 @@ export default function Dashboard() {
         if (!item) return;
         setItem(item.key, { status: "uploading" });
         try {
-          const created = await uploadVideo.mutateAsync({
-            data: {
-              ...(item.kind === "file" ? { file: item.file! } : { url: item.url! }),
-              ...(pr ? { privacyRequest: pr } : {}),
-            },
-          });
+          const created =
+            item.kind === "photos"
+              ? await importPhotosItem.mutateAsync({
+                  data: {
+                    sessionId: item.sessionId!,
+                    itemId: item.itemId!,
+                    ...(pr ? { privacyRequest: pr } : {}),
+                  },
+                })
+              : await uploadVideo.mutateAsync({
+                  data: {
+                    ...(item.kind === "file" ? { file: item.file! } : { url: item.url! }),
+                    ...(pr ? { privacyRequest: pr } : {}),
+                  },
+                });
           uploaded.push({ key: item.key, id: created.id });
           setItem(item.key, { status: "done", videoId: created.id });
         } catch (err) {
@@ -527,6 +592,16 @@ export default function Dashboard() {
                   <h3 className="font-bold text-base mb-1 truncate group-hover:text-accent transition-colors">{video.title}</h3>
                   <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground">
                     <span>{new Date(video.uploadedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span>
+                    {video.source === "google_photos" && (
+                      <span className="flex items-center gap-1" data-testid={`source-badge-${video.id}`}>
+                        <ImageIcon className="w-3 h-3" /> Google Photos
+                      </span>
+                    )}
+                    {video.source === "youtube" && (
+                      <span className="flex items-center gap-1" data-testid={`source-badge-${video.id}`}>
+                        <Youtube className="w-3 h-3" /> YouTube
+                      </span>
+                    )}
                     {video.location && (
                       <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {video.location}</span>
                     )}
@@ -683,6 +758,21 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Connected sources */}
+            <div className="mt-5">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">or import from your accounts</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <SourceButtons
+                disabled={isBatchRunning}
+                onAddPhotos={addPhotosPicks}
+                onAddYoutube={addYoutubePicks}
+                onNote={setUploadNote}
+              />
+            </div>
+
             {/* Paste links */}
             <div className="mt-5">
               <div className="flex items-center gap-4 mb-3">
@@ -727,6 +817,8 @@ export default function Dashboard() {
                     <li key={item.key} className="flex items-center gap-3 px-4 py-2.5" data-testid={`batch-item-${item.status}`}>
                       {item.kind === "file" ? (
                         <Film className="w-4 h-4 text-muted-foreground shrink-0" />
+                      ) : item.kind === "photos" ? (
+                        <ImageIcon className="w-4 h-4 text-muted-foreground shrink-0" />
                       ) : (
                         <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
                       )}

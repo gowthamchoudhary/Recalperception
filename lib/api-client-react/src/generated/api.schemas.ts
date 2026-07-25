@@ -150,6 +150,51 @@ export interface SearchResult {
   location?: string | null;
 }
 
+export interface SourcesStatus {
+  oauthConfigured: boolean;
+  googlePhotos: boolean;
+  youtube: boolean;
+}
+
+export interface PhotosSession {
+  sessionId: string;
+  pickerUri: string;
+  mediaItemsSet: boolean;
+  pollIntervalMs: number;
+}
+
+export interface PhotosItem {
+  id: string;
+  filename: string;
+  /** @nullable */
+  mimeType?: string | null;
+}
+
+export interface PhotosImport {
+  /** @minLength 1 */
+  sessionId: string;
+  /** @minLength 1 */
+  itemId: string;
+  /** @maxLength 500 */
+  privacyRequest?: string;
+}
+
+export interface ImportedVideo {
+  id: number;
+  title: string;
+  status: string;
+}
+
+export interface YoutubeVideo {
+  videoId: string;
+  title: string;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  privacyStatus: string;
+}
+
 export type ReviewItemStatus = typeof ReviewItemStatus[keyof typeof ReviewItemStatus];
 
 
@@ -215,5 +260,9 @@ export const ListVideosStatus = {
 
 export type SearchMemoriesParams = {
 q: string;
+};
+
+export type ListPhotosItemsParams = {
+sessionId: string;
 };
 

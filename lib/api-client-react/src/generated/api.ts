@@ -22,20 +22,27 @@ import type {
 import type {
   ApiMessage,
   HealthStatus,
+  ImportedVideo,
   LibraryStats,
+  ListPhotosItemsParams,
   ListVideosParams,
   LoginInput,
   Person,
+  PhotosImport,
+  PhotosItem,
+  PhotosSession,
   ReviewItem,
   ReviewResolution,
   SearchMemoriesParams,
   SearchResult,
   SignupInput,
+  SourcesStatus,
   User,
   Video,
   VideoDetail,
   VideoUpdate,
-  VideoUploadInput
+  VideoUploadInput,
+  YoutubeVideo
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -973,6 +980,463 @@ export function useSearchMemories<TData = Awaited<ReturnType<typeof searchMemori
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getSearchMemoriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSourcesStatusUrl = () => {
+
+
+
+
+  return `/api/sources/status`
+}
+
+/**
+ * @summary Connection status for external ingestion sources
+ */
+export const getSourcesStatus = async ( options?: RequestInit): Promise<SourcesStatus> => {
+
+  return customFetch<SourcesStatus>(getGetSourcesStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSourcesStatusQueryKey = () => {
+    return [
+    `/api/sources/status`
+    ] as const;
+    }
+
+
+export const getGetSourcesStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSourcesStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSourcesStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSourcesStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSourcesStatus>>> = ({ signal }) => getSourcesStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSourcesStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSourcesStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSourcesStatus>>>
+export type GetSourcesStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Connection status for external ingestion sources
+ */
+
+export function useGetSourcesStatus<TData = Awaited<ReturnType<typeof getSourcesStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSourcesStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSourcesStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePhotosSessionUrl = () => {
+
+
+
+
+  return `/api/sources/photos/session`
+}
+
+/**
+ * @summary Create a Google Photos Picker session
+ */
+export const createPhotosSession = async ( options?: RequestInit): Promise<PhotosSession> => {
+
+  return customFetch<PhotosSession>(getCreatePhotosSessionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreatePhotosSessionMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPhotosSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPhotosSession>>, TError,void, TContext> => {
+
+const mutationKey = ['createPhotosSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPhotosSession>>, void> = () => {
+
+
+          return  createPhotosSession(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePhotosSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createPhotosSession>>>
+
+    export type CreatePhotosSessionMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Create a Google Photos Picker session
+ */
+export const useCreatePhotosSession = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPhotosSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPhotosSession>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreatePhotosSessionMutationOptions(options));
+    }
+
+export const getGetPhotosSessionUrl = (id: string,) => {
+
+
+
+
+  return `/api/sources/photos/session/${id}`
+}
+
+/**
+ * @summary Poll a picker session until the user finished picking
+ */
+export const getPhotosSession = async (id: string, options?: RequestInit): Promise<PhotosSession> => {
+
+  return customFetch<PhotosSession>(getGetPhotosSessionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPhotosSessionQueryKey = (id: string,) => {
+    return [
+    `/api/sources/photos/session/${id}`
+    ] as const;
+    }
+
+
+export const getGetPhotosSessionQueryOptions = <TData = Awaited<ReturnType<typeof getPhotosSession>>, TError = ErrorType<ApiMessage>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPhotosSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPhotosSessionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPhotosSession>>> = ({ signal }) => getPhotosSession(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPhotosSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPhotosSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getPhotosSession>>>
+export type GetPhotosSessionQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Poll a picker session until the user finished picking
+ */
+
+export function useGetPhotosSession<TData = Awaited<ReturnType<typeof getPhotosSession>>, TError = ErrorType<ApiMessage>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPhotosSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPhotosSessionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPhotosItemsUrl = (params: ListPhotosItemsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/sources/photos/items?${stringifiedParams}` : `/api/sources/photos/items`
+}
+
+/**
+ * @summary List picked videos from a finished picker session
+ */
+export const listPhotosItems = async (params: ListPhotosItemsParams, options?: RequestInit): Promise<PhotosItem[]> => {
+
+  return customFetch<PhotosItem[]>(getListPhotosItemsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPhotosItemsQueryKey = (params?: ListPhotosItemsParams,) => {
+    return [
+    `/api/sources/photos/items`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPhotosItemsQueryOptions = <TData = Awaited<ReturnType<typeof listPhotosItems>>, TError = ErrorType<ApiMessage>>(params: ListPhotosItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPhotosItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPhotosItemsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPhotosItems>>> = ({ signal }) => listPhotosItems(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPhotosItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPhotosItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listPhotosItems>>>
+export type ListPhotosItemsQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary List picked videos from a finished picker session
+ */
+
+export function useListPhotosItems<TData = Awaited<ReturnType<typeof listPhotosItems>>, TError = ErrorType<ApiMessage>>(
+ params: ListPhotosItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPhotosItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPhotosItemsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportPhotosItemUrl = () => {
+
+
+
+
+  return `/api/sources/photos/import`
+}
+
+/**
+ * @summary Import one picked Google Photos video into the ingestion pipeline
+ */
+export const importPhotosItem = async (photosImport: PhotosImport, options?: RequestInit): Promise<ImportedVideo> => {
+
+  return customFetch<ImportedVideo>(getImportPhotosItemUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(photosImport)
+  }
+);}
+
+
+
+
+
+export const getImportPhotosItemMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importPhotosItem>>, TError,{data: BodyType<PhotosImport>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importPhotosItem>>, TError,{data: BodyType<PhotosImport>}, TContext> => {
+
+const mutationKey = ['importPhotosItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importPhotosItem>>, {data: BodyType<PhotosImport>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importPhotosItem(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportPhotosItemMutationResult = NonNullable<Awaited<ReturnType<typeof importPhotosItem>>>
+    export type ImportPhotosItemMutationBody = BodyType<PhotosImport>
+    export type ImportPhotosItemMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Import one picked Google Photos video into the ingestion pipeline
+ */
+export const useImportPhotosItem = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importPhotosItem>>, TError,{data: BodyType<PhotosImport>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importPhotosItem>>,
+        TError,
+        {data: BodyType<PhotosImport>},
+        TContext
+      > => {
+      return useMutation(getImportPhotosItemMutationOptions(options));
+    }
+
+export const getListYoutubeVideosUrl = () => {
+
+
+
+
+  return `/api/sources/youtube/videos`
+}
+
+/**
+ * @summary List the connected YouTube channel's public and unlisted videos
+ */
+export const listYoutubeVideos = async ( options?: RequestInit): Promise<YoutubeVideo[]> => {
+
+  return customFetch<YoutubeVideo[]>(getListYoutubeVideosUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListYoutubeVideosQueryKey = () => {
+    return [
+    `/api/sources/youtube/videos`
+    ] as const;
+    }
+
+
+export const getListYoutubeVideosQueryOptions = <TData = Awaited<ReturnType<typeof listYoutubeVideos>>, TError = ErrorType<ApiMessage>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listYoutubeVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListYoutubeVideosQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listYoutubeVideos>>> = ({ signal }) => listYoutubeVideos({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listYoutubeVideos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListYoutubeVideosQueryResult = NonNullable<Awaited<ReturnType<typeof listYoutubeVideos>>>
+export type ListYoutubeVideosQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary List the connected YouTube channel's public and unlisted videos
+ */
+
+export function useListYoutubeVideos<TData = Awaited<ReturnType<typeof listYoutubeVideos>>, TError = ErrorType<ApiMessage>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listYoutubeVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListYoutubeVideosQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

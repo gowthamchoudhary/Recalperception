@@ -295,6 +295,130 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SearchResult"
+  /sources/status:
+    get:
+      operationId: getSourcesStatus
+      tags: [sources]
+      summary: Connection status for external ingestion sources
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourcesStatus"
+  /sources/photos/session:
+    post:
+      operationId: createPhotosSession
+      tags: [sources]
+      summary: Create a Google Photos Picker session
+      responses:
+        "200":
+          description: Picker session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotosSession"
+        "409":
+          description: Google Photos not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sources/photos/session/{id}:
+    get:
+      operationId: getPhotosSession
+      tags: [sources]
+      summary: Poll a picker session until the user finished picking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Picker session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotosSession"
+        "409":
+          description: Google Photos not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sources/photos/items:
+    get:
+      operationId: listPhotosItems
+      tags: [sources]
+      summary: List picked videos from a finished picker session
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Picked videos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PhotosItem"
+        "409":
+          description: Google Photos not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sources/photos/import:
+    post:
+      operationId: importPhotosItem
+      tags: [sources]
+      summary: Import one picked Google Photos video into the ingestion pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotosImport"
+      responses:
+        "202":
+          description: Import accepted; ingestion runs in the background
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportedVideo"
+        "409":
+          description: Google Photos not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /sources/youtube/videos:
+    get:
+      operationId: listYoutubeVideos
+      tags: [sources]
+      summary: List the connected YouTube channel's public and unlisted videos
+      responses:
+        "200":
+          description: Channel videos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/YoutubeVideo"
+        "409":
+          description: YouTube not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /review-items:
     get:
       operationId: listReviewItems
@@ -488,6 +612,51 @@ components:
           items: { type: string }
         recordedAt: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
+    SourcesStatus:
+      type: object
+      required: [oauthConfigured, googlePhotos, youtube]
+      properties:
+        oauthConfigured: { type: boolean }
+        googlePhotos: { type: boolean }
+        youtube: { type: boolean }
+    PhotosSession:
+      type: object
+      required: [sessionId, pickerUri, mediaItemsSet, pollIntervalMs]
+      properties:
+        sessionId: { type: string }
+        pickerUri: { type: string }
+        mediaItemsSet: { type: boolean }
+        pollIntervalMs: { type: integer }
+    PhotosItem:
+      type: object
+      required: [id, filename]
+      properties:
+        id: { type: string }
+        filename: { type: string }
+        mimeType: { type: ["string", "null"] }
+    PhotosImport:
+      type: object
+      required: [sessionId, itemId]
+      properties:
+        sessionId: { type: string, minLength: 1 }
+        itemId: { type: string, minLength: 1 }
+        privacyRequest: { type: string, maxLength: 500 }
+    ImportedVideo:
+      type: object
+      required: [id, title, status]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        status: { type: string }
+    YoutubeVideo:
+      type: object
+      required: [videoId, title, privacyStatus]
+      properties:
+        videoId: { type: string }
+        title: { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        publishedAt: { type: ["string", "null"] }
+        privacyStatus: { type: string }
     ReviewItem:
       type: object
       required: [id, videoId, videoTitle, thumbnailUrl, reason, status, createdAt]

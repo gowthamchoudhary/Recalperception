@@ -264,6 +264,92 @@ export const SearchMemoriesResponse = zod.array(SearchMemoriesResponseItem)
 
 
 /**
+ * @summary Connection status for external ingestion sources
+ */
+export const GetSourcesStatusResponse = zod.object({
+  "oauthConfigured": zod.boolean(),
+  "googlePhotos": zod.boolean(),
+  "youtube": zod.boolean()
+})
+
+
+/**
+ * @summary Create a Google Photos Picker session
+ */
+export const CreatePhotosSessionResponse = zod.object({
+  "sessionId": zod.string(),
+  "pickerUri": zod.string(),
+  "mediaItemsSet": zod.boolean(),
+  "pollIntervalMs": zod.number()
+})
+
+
+/**
+ * @summary Poll a picker session until the user finished picking
+ */
+export const GetPhotosSessionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetPhotosSessionResponse = zod.object({
+  "sessionId": zod.string(),
+  "pickerUri": zod.string(),
+  "mediaItemsSet": zod.boolean(),
+  "pollIntervalMs": zod.number()
+})
+
+
+/**
+ * @summary List picked videos from a finished picker session
+ */
+export const ListPhotosItemsQueryParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const ListPhotosItemsResponseItem = zod.object({
+  "id": zod.string(),
+  "filename": zod.string(),
+  "mimeType": zod.string().nullish()
+})
+export const ListPhotosItemsResponse = zod.array(ListPhotosItemsResponseItem)
+
+
+/**
+ * @summary Import one picked Google Photos video into the ingestion pipeline
+ */
+
+
+export const importPhotosItemBodyPrivacyRequestMax = 500;
+
+
+
+export const ImportPhotosItemBody = zod.object({
+  "sessionId": zod.string().min(1),
+  "itemId": zod.string().min(1),
+  "privacyRequest": zod.string().max(importPhotosItemBodyPrivacyRequestMax).optional()
+})
+
+export const ImportPhotosItemResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary List the connected YouTube channel's public and unlisted videos
+ */
+export const ListYoutubeVideosResponseItem = zod.object({
+  "videoId": zod.string(),
+  "title": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "privacyStatus": zod.string()
+})
+export const ListYoutubeVideosResponse = zod.array(ListYoutubeVideosResponseItem)
+
+
+/**
  * @summary List pending needs-review items
  */
 export const ListReviewItemsResponseItem = zod.object({
