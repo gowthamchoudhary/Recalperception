@@ -21,10 +21,16 @@ import { Users, Eye } from "lucide-react";
 const DEMO = {
   audio: "/audio/landing-vlog.mp3",
   videos: [
-    { src: "/videos/landing-stuck-in-traffic.mp4", title: "Stuck in traffic", tag: "vlog" },
-    { src: "/videos/landing-friends-enjoying.mp4", title: "Friends enjoying", tag: "friends" },
-    { src: "/videos/landing-juggling-football.mp4", title: "Juggling football", tag: "sport" },
+    { src: "/videos/landing-stuck-in-traffic.mp4", title: "Stuck in traffic", tag: "vlog", scene: "car interior, traffic, driver" },
+    { src: "/videos/landing-friends-enjoying.mp4", title: "Friends enjoying", tag: "friends", scene: "people laughing, cafe, group" },
+    { src: "/videos/landing-juggling-football.mp4", title: "Juggling football", tag: "sport", scene: "football, park, juggling" },
   ],
+  hackathon: {
+    src: "/videos/landing-hackathon-demo.mp4",
+    title: "Recall demo",
+    tag: "demo",
+    scene: "search interface, video results, transcript",
+  },
 } as const;
 
 /** Muted, looping HLS preview used in the floating hero cards. */
@@ -122,10 +128,12 @@ function AudioWaveform({ isPlaying }: { isPlaying: boolean }) {
 function Annotation({
   label,
   top,
+  bottom,
   left,
   right,
   lineWidth,
   lineTop,
+  lineBottom,
   lineLeft,
   lineRight,
   rotate,
@@ -133,10 +141,12 @@ function Annotation({
 }: {
   label: string;
   top?: number | string;
+  bottom?: number | string;
   left?: number | string;
   right?: number | string;
   lineWidth: number;
-  lineTop: number | string;
+  lineTop?: number | string;
+  lineBottom?: number | string;
   lineLeft?: number | string;
   lineRight?: number | string;
   rotate: number;
@@ -146,7 +156,7 @@ function Annotation({
     <>
       <div
         className="absolute z-20 hidden xl:flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-[rgba(20,20,15,0.10)] rounded-full px-3 py-1.5 text-[10.5px] font-bold text-[#55554d] whitespace-nowrap"
-        style={{ top, left, right, boxShadow: "0 8px 18px -8px rgba(0,0,0,0.18)" }}
+        style={{ top, bottom, left, right, boxShadow: "0 8px 18px -8px rgba(0,0,0,0.18)" }}
       >
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
         {label}
@@ -155,6 +165,7 @@ function Annotation({
         className="absolute z-10 hidden xl:block border-t border-dashed border-[rgba(20,20,15,0.35)]"
         style={{
           top: lineTop,
+          bottom: lineBottom,
           left: lineLeft,
           right: lineRight,
           width: lineWidth,
@@ -276,38 +287,55 @@ export default function Home() {
 
         {/* Floating decorative cards */}
         <div className="hidden xl:block pointer-events-none">
-          {/* Left photo stack */}
-          <div className="absolute top-[150px] left-9 z-10">
-            {/* Teacher lecture card */}
+          {/* Left floating video stack — 3 scene-extracted demo cards */}
+          <div className="absolute top-[150px] left-7 xl:left-9 z-10">
+            {/* Card 1 — stuck in traffic */}
             <div className="float-anim" style={{ ["--rot" as string]: "-8deg", transform: "rotate(-8deg)" }}>
               <StitchedCard
-                className="w-[118px] h-[150px] bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
+                className="w-[140px] h-[176px] xl:w-[150px] xl:h-[190px] bg-white rounded-[16px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[7px] relative overflow-hidden bg-[#14140f]">
+                <div className="w-full h-full rounded-[8px] relative overflow-hidden bg-[#14140f]">
                   <video src={DEMO.videos[0].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-[8px] font-bold text-white uppercase tracking-wide">{DEMO.videos[0].tag}</p>
-                    <p className="text-[9px] text-white/80 truncate">{DEMO.videos[0].title}</p>
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                    <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.videos[0].tag}</p>
+                    <p className="text-[10px] text-white/80 truncate">{DEMO.videos[0].title}</p>
                   </div>
                 </div>
               </StitchedCard>
             </div>
-            {/* Kid playing card */}
-            <div className="float-anim d1 absolute top-[120px] left-16 z-20" style={{ ["--rot" as string]: "7deg", transform: "rotate(7deg)" }}>
+            {/* Card 2 — friends enjoying */}
+            <div className="float-anim d1 absolute top-[150px] left-20 xl:left-24 z-20" style={{ ["--rot" as string]: "7deg", transform: "rotate(7deg)" }}>
               <StitchedCard
-                className="w-[100px] h-[126px] bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
+                className="w-[135px] h-[170px] xl:w-[145px] xl:h-[184px] bg-white rounded-[16px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[7px] relative overflow-hidden bg-[#14140f]">
+                <div className="w-full h-full rounded-[8px] relative overflow-hidden bg-[#14140f]">
                   <video src={DEMO.videos[1].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-[8px] font-bold text-white uppercase tracking-wide">{DEMO.videos[1].tag}</p>
-                    <p className="text-[9px] text-white/80 truncate">{DEMO.videos[1].title}</p>
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                    <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.videos[1].tag}</p>
+                    <p className="text-[10px] text-white/80 truncate">{DEMO.videos[1].title}</p>
+                  </div>
+                </div>
+              </StitchedCard>
+            </div>
+            {/* Card 3 — juggling football */}
+            <div className="float-anim d2 absolute top-[300px] left-2 xl:left-4 z-30" style={{ ["--rot" as string]: "-4deg", transform: "rotate(-4deg)" }}>
+              <StitchedCard
+                className="w-[140px] h-[176px] xl:w-[150px] xl:h-[190px] bg-white rounded-[16px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
+                inset={5}
+                radius={9}
+              >
+                <div className="w-full h-full rounded-[8px] relative overflow-hidden bg-[#14140f]">
+                  <video src={DEMO.videos[2].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                    <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.videos[2].tag}</p>
+                    <p className="text-[10px] text-white/80 truncate">{DEMO.videos[2].title}</p>
                   </div>
                 </div>
               </StitchedCard>
@@ -315,23 +343,33 @@ export default function Home() {
           </div>
 
           <Annotation
-            label='Scene extracted · "teacher, whiteboard, lecture"'
-            top={140}
-            left={172}
-            lineTop={150}
-            lineLeft={150}
-            lineWidth={34}
+            label={`Scene extracted · "${DEMO.videos[0].scene}"`}
+            top={150}
+            left={180}
+            lineTop={170}
+            lineLeft={155}
+            lineWidth={38}
             rotate={18}
           />
           <Annotation
-            label="People detected · 2 kids, 1 adult"
-            top={300}
-            left={20}
-            lineTop={300}
-            lineLeft={78}
-            lineWidth={30}
-            rotate={-10}
-            color="#f59e0b"
+            label={`Scene extracted · "${DEMO.videos[1].scene}"`}
+            top={330}
+            left={230}
+            lineTop={330}
+            lineLeft={185}
+            lineWidth={56}
+            rotate={-8}
+            color="#3b82f6"
+          />
+          <Annotation
+            label={`Scene extracted · "${DEMO.videos[2].scene}"`}
+            top={480}
+            left={30}
+            lineTop={470}
+            lineLeft={110}
+            lineWidth={40}
+            rotate={-18}
+            color="#a855f7"
           />
 
           {/* Right moment card — podcast / gold moment */}
@@ -362,18 +400,34 @@ export default function Home() {
             color="#a855f7"
           />
 
-          {/* Bottom right clip card */}
+          {/* Bottom right — hackathon demo video card with scene extraction */}
           <div className="absolute bottom-16 right-10 z-10 float-anim d1" style={{ ["--rot" as string]: "-3deg", transform: "rotate(-3deg)" }}>
-            <div className="w-[170px] bg-white rounded-xl p-2.5 flex gap-2.5 items-center border border-[rgba(20,20,15,0.10)] shadow-[0_16px_32px_-14px_rgba(0,0,0,0.2)]">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #a855f7, #7e22ce)" }}>
-                <Mic2 className="w-3.5 h-3.5 text-white" />
+            <StitchedCard
+              className="w-[165px] xl:w-[190px] bg-white rounded-[16px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
+              inset={5}
+              radius={9}
+            >
+              <div className="w-full h-[135px] xl:h-[150px] rounded-[8px] relative overflow-hidden bg-[#14140f]">
+                <video src={DEMO.hackathon.src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="absolute bottom-2.5 left-2.5 right-2.5">
+                  <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.hackathon.tag}</p>
+                  <p className="text-[10px] text-white/80 truncate">{DEMO.hackathon.title}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold truncate leading-tight">{podcastVideo?.title ?? "The Mid-Video Rant"}</p>
-                <p className="text-[9.5px] text-[#55554d] font-medium">{podcastVideo ? `Indexed · ${mmss(podcastVideo.durationSeconds)}` : "Podcast · 47 min"}</p>
-              </div>
-            </div>
+            </StitchedCard>
           </div>
+
+          <Annotation
+            label={`Scene extracted · "${DEMO.hackathon.scene}"`}
+            bottom={160}
+            right={230}
+            lineBottom={120}
+            lineRight={220}
+            lineWidth={30}
+            rotate={-20}
+            color="#ec4899"
+          />
         </div>
 
         {/* Floating audio card — demo vlog MP3, desktop only */}
