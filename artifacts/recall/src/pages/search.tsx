@@ -5,6 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Search as SearchIcon, Play, ChevronLeft, Calendar, MapPin, Users, X, Quote } from "lucide-react";
 import { useSearchMemories, useGetVideo, getSearchMemoriesQueryKey, getGetVideoQueryKey } from "@workspace/api-client-react";
 import { Button, Card } from "@/components/ui";
+import { VideoActions } from "@/components/video-actions";
 
 export default function Search() {
   const [location, setLocation] = useLocation();
@@ -118,8 +119,16 @@ export default function Search() {
                     <div className="flex-1 min-w-0 py-1">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-bold text-lg truncate pr-4 group-hover:text-accent transition-colors">{result.videoTitle}</h3>
-                        <div className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-[10px] font-bold uppercase tracking-wider shrink-0">
-                          {result.matchType} match
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-[10px] font-bold uppercase tracking-wider">
+                            {result.matchType} match
+                          </div>
+                          <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                            <VideoActions
+                              video={{ id: result.videoId, title: result.videoTitle }}
+                              variant="ghost"
+                            />
+                          </div>
                         </div>
                       </div>
                       

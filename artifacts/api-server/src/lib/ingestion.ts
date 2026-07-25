@@ -376,8 +376,16 @@ export async function runIngestion(
     const coll = await getVideoDBCollection();
     const uploaded =
       source.kind === "url"
-        ? await coll.uploadURL({ url: source.url, mediaType: "video" })
-        : await coll.uploadFile({ filePath: source.filePath, mediaType: "video" });
+        ? await withTimeout(
+            coll.uploadURL({ url: source.url, mediaType: "video" }),
+            15 * 60_000,
+            "VideoDB URL upload",
+          )
+        : await withTimeout(
+            coll.uploadFile({ filePath: source.filePath, mediaType: "video" }),
+            15 * 60_000,
+            "VideoDB file upload",
+          );
 
     if (!uploaded || !(uploaded instanceof VideoDBVideo)) {
       throw new Error("VideoDB upload did not return a video object");
@@ -393,7 +401,11 @@ export async function runIngestion(
 
     let thumbnailUrl: string | undefined;
     try {
-      const thumb = await media.generateThumbnail();
+      const thumb = await withTimeout(
+        media.generateThumbnail(),
+        2 * 60_000,
+        "VideoDB thumbnail generation",
+      );
       if (typeof thumb === "string") {
         thumbnailUrl = thumb;
       } else if (thumb && typeof (thumb as { url?: unknown }).url === "string") {

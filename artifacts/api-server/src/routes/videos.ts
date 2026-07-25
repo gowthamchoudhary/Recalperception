@@ -24,6 +24,7 @@ import {
   isVideoDBConfigured,
   isVideoDBNotFoundError,
   getVideoDBCollection,
+  withTimeout,
 } from "../lib/videodb";
 import {
   runIngestion,
@@ -341,7 +342,11 @@ router.delete("/videos/:id", async (req, res): Promise<void> => {
     }
     try {
       const coll = await getVideoDBCollection();
-      await coll.deleteVideo(video.videodbVideoId);
+      await withTimeout(
+        coll.deleteVideo(video.videodbVideoId),
+        60_000,
+        "VideoDB video deletion",
+      );
     } catch (err) {
       // Tolerate assets that are already gone so local cleanup can proceed.
       if (!isVideoDBNotFoundError(err)) {

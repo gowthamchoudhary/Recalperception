@@ -7,7 +7,6 @@ import {
   Clock,
   MapPin,
   Tag,
-  Edit2,
   Play,
   Check,
   X,
@@ -29,6 +28,7 @@ import {
   getGetStatsQueryKey,
 } from "@workspace/api-client-react";
 import { Button, Card } from "@/components/ui";
+import { VideoActions } from "@/components/video-actions";
 import { useQueryClient } from "@tanstack/react-query";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB (matches the API limit)
@@ -514,10 +514,8 @@ export default function Dashboard() {
                         {cancellingIds.has(video.id) ? "Cancelling…" : "Cancel"}
                       </button>
                     ) : (
-                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70">
-                          <Edit2 className="w-4 h-4" />
-                        </div>
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <VideoActions video={video} variant="overlay" />
                       </div>
                     )}
                     {video.durationSeconds > 0 && (

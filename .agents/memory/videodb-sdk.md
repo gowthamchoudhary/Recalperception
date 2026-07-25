@@ -13,6 +13,7 @@ description: Non-obvious behaviors of the videodb npm SDK and how this project i
 - Enums: `SearchTypeValues.semantic`, `IndexTypeValues.spoken`, `SceneExtractionType.shotBased`.
 - `streamUrl` is an HLS (`.m3u8`) URL — Chrome needs hls.js for playback; Safari plays natively.
 - The `indexScenes` prompt is a full instruction channel: for user-defined detection targets, embed the request and tell the model to append a sentinel token (e.g. `USER_REQUEST_MATCH`) to matching scene descriptions — detection becomes a substring check, far more reliable than keyword regex over free-form text. Strip the sentinel before storing/showing descriptions. Verified working against real scans.
+- The SDK has **no request timeouts anywhere** — any call can wedge forever (observed: `getCollection()` and `getVideo()` hanging pipelines for hours, not just the long indexing calls). Wrap EVERY SDK call in a `withTimeout(promise, ms, label)` race (generous budgets: 60s metadata, minutes-scale indexing) so a wedge becomes a labeled, retryable failure instead of a stuck job.
 
 **Why:** These were learned by reading the SDK's d.ts; guessing (e.g. calling `getShots()`) breaks typecheck or silently misbehaves.
 **How to apply:** Any work touching upload/search/scan code paths in the api-server.
