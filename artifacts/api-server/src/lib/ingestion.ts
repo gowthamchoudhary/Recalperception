@@ -38,7 +38,7 @@ const BASELINE_SCENE_PROMPT =
  * own "don't process this" request. Detection then only needs an exact
  * substring check — no fragile keyword guessing over free-form text.
  */
-const USER_MATCH_SENTINEL = "USER_REQUEST_MATCH";
+export const USER_MATCH_SENTINEL = "USER_REQUEST_MATCH";
 
 /** One scan pass covers baseline categories plus the user's request, if any. */
 function buildScenePrompt(privacyRequest: string | null): string {

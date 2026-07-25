@@ -16,6 +16,11 @@ export interface SearchResult {
   videoUrl?: string | null;
   snippet: string;
   matchType: SearchResultMatchType;
+  /**
+     * One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)
+     * @nullable
+     */
+  matchReason?: string | null;
   timestampSeconds: number;
   durationSeconds: number;
   people?: string[];

@@ -253,6 +253,7 @@ export const SearchMemoriesResponseItem = zod.object({
   "videoUrl": zod.string().nullish(),
   "snippet": zod.string(),
   "matchType": zod.enum(['speech', 'scene', 'person']),
+  "matchReason": zod.string().nullish().describe('One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)'),
   "timestampSeconds": zod.number(),
   "durationSeconds": zod.number(),
   "people": zod.array(zod.string()).optional(),

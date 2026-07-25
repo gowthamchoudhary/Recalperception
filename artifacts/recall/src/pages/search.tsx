@@ -135,6 +135,12 @@ export default function Search() {
                       <div className="text-sm font-serif italic text-muted-foreground/80 mb-3 border-l-2 border-accent/30 pl-3">
                         "{result.snippet}"
                       </div>
+
+                      {result.matchReason && (
+                        <div className="text-xs font-medium text-accent-foreground/80 bg-accent/10 rounded-lg px-3 py-1.5 mb-3 inline-block" data-testid={`match-reason-${result.videoId}`}>
+                          {result.matchReason}
+                        </div>
+                      )}
                       
                       <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-auto">
                         {result.recordedAt && (

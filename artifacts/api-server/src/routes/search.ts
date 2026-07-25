@@ -7,7 +7,13 @@ import {
 } from "@workspace/api-zod";
 import { SearchResult, SearchTypeValues, IndexTypeValues } from "videodb";
 import { logger } from "../lib/logger";
-import { isVideoDBConfigured, getVideoDBCollection } from "../lib/videodb";
+import {
+  isVideoDBConfigured,
+  getVideoDBCollection,
+  withTimeout,
+} from "../lib/videodb";
+import { USER_MATCH_SENTINEL } from "../lib/ingestion";
+import { rerankWithGroq, type RerankCandidate } from "../lib/rerank";
 import { currentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -20,12 +26,18 @@ type ApiSearchResult = {
   videoUrl: string | null;
   snippet: string;
   matchType: "speech" | "scene" | "person";
+  matchReason: string | null;
   timestampSeconds: number;
   durationSeconds: number;
   people: string[];
   recordedAt: string | null;
   location: string | null;
 };
+
+/** Scene descriptions may carry the privacy-scan sentinel — never show it. */
+function cleanSnippet(text: string): string {
+  return text.replaceAll(USER_MATCH_SENTINEL, "").replace(/\s{2,}/g, " ").trim();
+}
 
 router.get("/search", async (req, res): Promise<void> => {
   const parsed = SearchMemoriesQueryParams.safeParse(req.query);
@@ -57,7 +69,8 @@ router.get("/search", async (req, res): Promise<void> => {
       .map((v) => [v.videodbVideoId as string, v]),
   );
 
-  // Semantic search over VideoDB-indexed videos (real uploads).
+  // Semantic search over VideoDB-indexed videos (real uploads): two parallel
+  // retrievals — spoken-word transcript AND visual scene descriptions.
   let videodbResults: ApiSearchResult[] = [];
   if (videoByVdbId.size > 0) {
     if (!isVideoDBConfigured()) {
@@ -68,27 +81,53 @@ router.get("/search", async (req, res): Promise<void> => {
       return;
     }
     try {
-      const coll = await getVideoDBCollection();
-      const result = await coll.search(
-        rawQuery,
-        SearchTypeValues.semantic,
-        IndexTypeValues.spoken,
-        12,
+      const coll = await withTimeout(
+        getVideoDBCollection(),
+        60_000,
+        "getCollection",
       );
-      const shots = result instanceof SearchResult ? result.shots : [];
-      videodbResults = shots.flatMap((shot, i) => {
+      const searchIndex = async (
+        indexType: IndexTypeValues,
+      ): Promise<InstanceType<typeof SearchResult>["shots"]> => {
+        try {
+          const result = await withTimeout(
+            coll.search(rawQuery, SearchTypeValues.semantic, indexType, 12),
+            60_000,
+            `search:${indexType}`,
+          );
+          return result instanceof SearchResult ? result.shots : [];
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          // The VideoDB SDK raises instead of returning an empty result set —
+          // zero matches is a normal outcome, not an upstream failure.
+          if (/no results found/i.test(message)) return [];
+          throw err;
+        }
+      };
+      const [spokenShots, sceneShots] = await Promise.all([
+        searchIndex(IndexTypeValues.spoken),
+        searchIndex(IndexTypeValues.scene),
+      ]);
+
+      let syntheticId = 0;
+      const toResult = (
+        shot: (typeof spokenShots)[number],
+        matchType: "speech" | "scene",
+      ): ApiSearchResult[] => {
         const row = videoByVdbId.get(shot.videoId);
         if (!row) return [];
+        syntheticId += 1;
         return [
           {
             // Synthetic negative ids: VideoDB shots are not moment rows.
-            id: -(i + 1),
+            id: -syntheticId,
             videoId: row.id,
             videoTitle: row.title,
             thumbnailUrl: row.thumbnailUrl,
             videoUrl: row.videoUrl,
-            snippet: shot.text?.trim() || "Matched moment",
-            matchType: "speech" as const,
+            snippet: cleanSnippet(shot.text?.trim() || "") || "Matched moment",
+            matchType,
+            matchReason: null,
             timestampSeconds: Math.max(0, Math.round(shot.start)),
             durationSeconds:
               row.durationSeconds || Math.round(shot.videoLength || 0),
@@ -97,18 +136,16 @@ router.get("/search", async (req, res): Promise<void> => {
             location: row.location,
           },
         ];
-      });
+      };
+      videodbResults = [
+        ...spokenShots.flatMap((s) => toResult(s, "speech")),
+        ...sceneShots.flatMap((s) => toResult(s, "scene")),
+      ];
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      // The VideoDB SDK raises instead of returning an empty result set —
-      // zero matches is a normal outcome, not an upstream failure.
-      if (/no results found/i.test(message)) {
-        videodbResults = [];
-      } else {
-        logger.error({ err, query: rawQuery }, "VideoDB search failed");
-        res.status(502).json({ error: `VideoDB search failed: ${message}` });
-        return;
-      }
+      logger.error({ err, query: rawQuery }, "VideoDB search failed");
+      res.status(502).json({ error: `VideoDB search failed: ${message}` });
+      return;
     }
   }
 
@@ -145,6 +182,7 @@ router.get("/search", async (req, res): Promise<void> => {
     videoUrl: video.videoUrl,
     snippet: m.snippet,
     matchType: m.matchType as ApiSearchResult["matchType"],
+    matchReason: null,
     timestampSeconds: m.timestampSeconds,
     durationSeconds: video.durationSeconds,
     people: video.people,
@@ -152,7 +190,40 @@ router.get("/search", async (req, res): Promise<void> => {
     location: video.location,
   }));
 
-  const results = [...videodbResults, ...keywordResults].slice(0, 12);
+  // Combined candidate set → LLM rerank (filter + order + per-result reason).
+  const candidates = [...videodbResults, ...keywordResults];
+  const byKey = new Map(candidates.map((c) => [c.id, c]));
+  const rerankInput: RerankCandidate[] = candidates.map((c) => ({
+    key: c.id,
+    videoTitle: c.videoTitle,
+    snippet: c.snippet,
+    matchType: c.matchType,
+    timestampSeconds: c.timestampSeconds,
+  }));
+  const reranked = await rerankWithGroq(rawQuery, rerankInput);
+
+  let ordered: ApiSearchResult[];
+  if (reranked) {
+    ordered = reranked.flatMap(({ key, reason }) => {
+      const c = byKey.get(key);
+      return c ? [{ ...c, matchReason: reason || null }] : [];
+    });
+  } else {
+    // Rerank unavailable — raw retrieval order (spoken, scene, keyword).
+    ordered = candidates;
+  }
+
+  // Deduplicate: one card per video, keeping its most relevant match
+  // (rerank order when available, otherwise branch priority).
+  const seenVideos = new Set<number>();
+  const results: ApiSearchResult[] = [];
+  for (const r of ordered) {
+    if (seenVideos.has(r.videoId)) continue;
+    seenVideos.add(r.videoId);
+    results.push(r);
+    if (results.length >= 12) break;
+  }
+
   res.json(SearchMemoriesResponse.parse(results));
 });
 

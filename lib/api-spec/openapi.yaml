@@ -478,6 +478,9 @@ components:
         videoUrl: { type: ["string", "null"] }
         snippet: { type: string }
         matchType: { type: string, enum: [speech, scene, person] }
+        matchReason:
+          type: ["string", "null"]
+          description: One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)
         timestampSeconds: { type: integer }
         durationSeconds: { type: integer }
         people:
