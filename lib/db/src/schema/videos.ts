@@ -25,6 +25,9 @@ export const videosTable = pgTable("videos", {
   people: text("people").array().notNull().default([]),
   transcriptExcerpt: text("transcript_excerpt"),
   sceneCount: integer("scene_count"),
+  videodbVideoId: text("videodb_video_id"),
+  playerUrl: text("player_url"),
+  indexError: text("index_error"),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({

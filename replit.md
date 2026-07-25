@@ -10,6 +10,7 @@ A personal video memory search engine — search a lifetime of video by what was
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `VIDEODB_API_KEY` — enables real video ingestion + semantic search (routes return 503 without it)
 
 ## Stack
 
@@ -30,14 +31,17 @@ A personal video memory search engine — search a lifetime of video by what was
 
 ## Architecture decisions
 
-- Search is keyword scoring over indexed "moments" (snippet + keywords per video) — no external AI service.
+- Video intelligence is VideoDB (SDK `videodb`, key `VIDEODB_API_KEY`): `POST /api/videos/upload` (multipart file or URL) inserts a `processing` row and runs a background pipeline in `artifacts/api-server/src/lib/ingestion.ts` — upload → spoken-word index → transcript excerpt → privacy scene scan. Clean scan → `indexed`; sensitive scenes or scan failure → `flagged` + review item; pipeline error → `failed` + `indexError`.
+- Search is hybrid: VideoDB semantic search over real uploads (rows with `videodbVideoId`, synthetic negative result ids) merged with keyword scoring over seeded "moments". No silent fallbacks — VideoDB errors surface as 502/503 to the client.
+- Review queue: Accept → video back to `indexed` once no pending items; Discard → deletes from VideoDB first, then removes the video + moments + review items entirely.
+- Boot sweep marks rows stuck in `processing` as `failed` on server restart (background jobs don't survive restarts).
 - Auth is UI-only (login page navigates to dashboard); no real auth backend yet.
-- Videos have `videoUrl: null` for now — the player and hero cards are built as swappable media slots for real clips the user will upload later.
+- Seeded videos have `videoUrl: null`; real uploads get VideoDB `streamUrl` (HLS) + `playerUrl`. The player overlay and hero cards remain swappable media slots.
 
 ## Product
 
 - Landing hero with floating memory cards matching the user's reference design (cream #f4f4f2, green #1c8a3e accent, dark moment-found card, JetBrains Mono stamped accent)
-- Dashboard: search bar, video library grid, simulated upload flow, Needs Review queue with Accept/Discard
+- Dashboard: search bar, video library grid with status badges (Indexing/Needs review/Failed), real file+URL upload to VideoDB, 4s polling while ingesting, Needs Review queue with Accept/Discard
 - Search with staged loading transition and results list; player overlay with highlighted matched segment
 
 ## User preferences
@@ -47,6 +51,8 @@ A personal video memory search engine — search a lifetime of video by what was
 ## Gotchas
 
 - Body schemas in the OpenAPI spec must use entity-shaped names (`VideoInput`, not `CreateVideoBody`) to avoid TS2308 collisions after codegen.
+- `lib/api-zod/tsconfig.json` needs `"lib": ["es2022", "dom"]` — orval generates `zod.instanceof(File)`/`Blob` for multipart schemas (fine at runtime on Node 20+).
+- videodb SDK: `SearchResult.shots` is a property (not a method); pnpm blocks its postinstall script — harmless, it only fetches optional capture binaries.
 
 ## Pointers
 

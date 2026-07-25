@@ -23,6 +23,7 @@ import type {
   ApiMessage,
   HealthStatus,
   LibraryStats,
+  ListVideosParams,
   Person,
   ReviewItem,
   ReviewResolution,
@@ -31,7 +32,8 @@ import type {
   Video,
   VideoDetail,
   VideoInput,
-  VideoUpdate
+  VideoUpdate,
+  VideoUploadInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -139,20 +141,27 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-export const getListVideosUrl = () => {
+export const getListVideosUrl = (params?: ListVideosParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/videos`
+  return stringifiedParams.length > 0 ? `/api/videos?${stringifiedParams}` : `/api/videos`
 }
 
 /**
  * @summary List all videos in the library
  */
-export const listVideos = async ( options?: RequestInit): Promise<Video[]> => {
+export const listVideos = async (params?: ListVideosParams, options?: RequestInit): Promise<Video[]> => {
 
-  return customFetch<Video[]>(getListVideosUrl(),
+  return customFetch<Video[]>(getListVideosUrl(params),
   {
     ...options,
     method: 'GET'
@@ -165,23 +174,23 @@ export const listVideos = async ( options?: RequestInit): Promise<Video[]> => {
 
 
 
-export const getListVideosQueryKey = () => {
+export const getListVideosQueryKey = (params?: ListVideosParams,) => {
     return [
-    `/api/videos`
+    `/api/videos`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListVideosQueryOptions = <TData = Awaited<ReturnType<typeof listVideos>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListVideosQueryOptions = <TData = Awaited<ReturnType<typeof listVideos>>, TError = ErrorType<unknown>>(params?: ListVideosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListVideosQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListVideosQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVideos>>> = ({ signal }) => listVideos({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVideos>>> = ({ signal }) => listVideos(params, { signal, ...requestOptions });
 
 
 
@@ -199,11 +208,11 @@ export type ListVideosQueryError = ErrorType<unknown>
  */
 
 export function useListVideos<TData = Awaited<ReturnType<typeof listVideos>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListVideosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListVideosQueryOptions(options)
+  const queryOptions = getListVideosQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -285,6 +294,167 @@ export const useCreateVideo = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateVideoMutationOptions(options));
+    }
+
+export const getUploadVideoUrl = () => {
+
+
+
+
+  return `/api/videos/upload`
+}
+
+/**
+ * @summary Upload a video (file or URL) to VideoDB and start ingestion
+ */
+export const uploadVideo = async (videoUploadInput: VideoUploadInput, options?: RequestInit): Promise<Video> => {
+    const formData = new FormData();
+if(videoUploadInput.file !== undefined) {
+ formData.append(`file`, videoUploadInput.file);
+ }
+if(videoUploadInput.url !== undefined) {
+ formData.append(`url`, videoUploadInput.url);
+ }
+if(videoUploadInput.title !== undefined) {
+ formData.append(`title`, videoUploadInput.title);
+ }
+if(videoUploadInput.recordedAt !== undefined) {
+ formData.append(`recordedAt`, videoUploadInput.recordedAt);
+ }
+if(videoUploadInput.location !== undefined) {
+ formData.append(`location`, videoUploadInput.location);
+ }
+if(videoUploadInput.source !== undefined) {
+ formData.append(`source`, videoUploadInput.source);
+ }
+
+  return customFetch<Video>(getUploadVideoUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadVideoMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadVideo>>, TError,{data: BodyType<VideoUploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadVideo>>, TError,{data: BodyType<VideoUploadInput>}, TContext> => {
+
+const mutationKey = ['uploadVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadVideo>>, {data: BodyType<VideoUploadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadVideo(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadVideoMutationResult = NonNullable<Awaited<ReturnType<typeof uploadVideo>>>
+    export type UploadVideoMutationBody = BodyType<VideoUploadInput>
+    export type UploadVideoMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Upload a video (file or URL) to VideoDB and start ingestion
+ */
+export const useUploadVideo = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadVideo>>, TError,{data: BodyType<VideoUploadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadVideo>>,
+        TError,
+        {data: BodyType<VideoUploadInput>},
+        TContext
+      > => {
+      return useMutation(getUploadVideoMutationOptions(options));
+    }
+
+export const getPrivacyScanVideoUrl = (id: number,) => {
+
+
+
+
+  return `/api/videos/${id}/privacy-scan`
+}
+
+/**
+ * @summary Run the privacy/sensitivity scene scan for a video
+ */
+export const privacyScanVideo = async (id: number, options?: RequestInit): Promise<Video> => {
+
+  return customFetch<Video>(getPrivacyScanVideoUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPrivacyScanVideoMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof privacyScanVideo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof privacyScanVideo>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['privacyScanVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof privacyScanVideo>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  privacyScanVideo(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PrivacyScanVideoMutationResult = NonNullable<Awaited<ReturnType<typeof privacyScanVideo>>>
+
+    export type PrivacyScanVideoMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Run the privacy/sensitivity scene scan for a video
+ */
+export const usePrivacyScanVideo = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof privacyScanVideo>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof privacyScanVideo>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPrivacyScanVideoMutationOptions(options));
     }
 
 export const getGetVideoUrl = (id: number,) => {

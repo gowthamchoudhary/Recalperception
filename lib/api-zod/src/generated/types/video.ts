@@ -22,6 +22,10 @@ export interface Video {
   location?: string | null;
   status: VideoStatus;
   source: VideoSource;
+  /** @nullable */
+  playerUrl?: string | null;
+  /** @nullable */
+  indexError?: string | null;
   tags: string[];
   people: string[];
 }

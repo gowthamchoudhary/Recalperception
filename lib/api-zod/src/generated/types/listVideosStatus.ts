@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type VideoStatus = typeof VideoStatus[keyof typeof VideoStatus];
+export type ListVideosStatus = typeof ListVideosStatus[keyof typeof ListVideosStatus];
 
 
-export const VideoStatus = {
+export const ListVideosStatus = {
   indexed: 'indexed',
   processing: 'processing',
   flagged: 'flagged',

@@ -39,6 +39,13 @@ paths:
       operationId: listVideos
       tags: [videos]
       summary: List all videos in the library
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [indexed, processing, flagged, failed]
       responses:
         "200":
           description: Video list
@@ -65,6 +72,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Video"
+  /videos/upload:
+    post:
+      operationId: uploadVideo
+      tags: [videos]
+      summary: Upload a video (file or URL) to VideoDB and start ingestion
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/VideoUploadInput"
+      responses:
+        "202":
+          description: Accepted — ingestion started in the background
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: VideoDB not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /videos/{id}/privacy-scan:
+    post:
+      operationId: privacyScanVideo
+      tags: [videos]
+      summary: Run the privacy/sensitivity scene scan for a video
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Scan started in the background
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Video is not ready for scanning
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: VideoDB not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /videos/{id}:
     get:
       operationId: getVideo
@@ -255,8 +328,10 @@ components:
         uploadedAt: { type: string }
         recordedAt: { type: ["string", "null"] }
         location: { type: ["string", "null"] }
-        status: { type: string, enum: [indexed, processing, flagged] }
+        status: { type: string, enum: [indexed, processing, flagged, failed] }
         source: { type: string, enum: [gallery, google_photos, youtube] }
+        playerUrl: { type: ["string", "null"] }
+        indexError: { type: ["string", "null"] }
         tags:
           type: array
           items: { type: string }
@@ -288,6 +363,20 @@ components:
         people:
           type: array
           items: { type: string }
+    VideoUploadInput:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Video file to upload
+        url:
+          type: string
+          description: Public video URL (YouTube, Google Photos, or a direct file link)
+        title: { type: string }
+        recordedAt: { type: string }
+        location: { type: string }
+        source: { type: string, enum: [gallery, google_photos, youtube] }
     VideoUpdate:
       type: object
       properties:

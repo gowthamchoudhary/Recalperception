@@ -20,6 +20,7 @@ export const VideoStatus = {
   indexed: 'indexed',
   processing: 'processing',
   flagged: 'flagged',
+  failed: 'failed',
 } as const;
 
 export type VideoSource = typeof VideoSource[keyof typeof VideoSource];
@@ -45,6 +46,10 @@ export interface Video {
   location?: string | null;
   status: VideoStatus;
   source: VideoSource;
+  /** @nullable */
+  playerUrl?: string | null;
+  /** @nullable */
+  indexError?: string | null;
   tags: string[];
   people: string[];
 }
@@ -76,6 +81,26 @@ export interface VideoInput {
   source?: VideoInputSource;
   tags?: string[];
   people?: string[];
+}
+
+export type VideoUploadInputSource = typeof VideoUploadInputSource[keyof typeof VideoUploadInputSource];
+
+
+export const VideoUploadInputSource = {
+  gallery: 'gallery',
+  google_photos: 'google_photos',
+  youtube: 'youtube',
+} as const;
+
+export interface VideoUploadInput {
+  /** Video file to upload */
+  file?: Blob;
+  /** Public video URL (YouTube, Google Photos, or a direct file link) */
+  url?: string;
+  title?: string;
+  recordedAt?: string;
+  location?: string;
+  source?: VideoUploadInputSource;
 }
 
 export interface VideoUpdate {
@@ -162,6 +187,20 @@ export interface LibraryStats {
   totalScenes: number;
   pendingReviewCount: number;
 }
+
+export type ListVideosParams = {
+status?: ListVideosStatus;
+};
+
+export type ListVideosStatus = typeof ListVideosStatus[keyof typeof ListVideosStatus];
+
+
+export const ListVideosStatus = {
+  indexed: 'indexed',
+  processing: 'processing',
+  flagged: 'flagged',
+  failed: 'failed',
+} as const;
 
 export type SearchMemoriesParams = {
 q: string;

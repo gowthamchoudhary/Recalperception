@@ -9,6 +9,8 @@
 export * from './apiMessage';
 export * from './healthStatus';
 export * from './libraryStats';
+export * from './listVideosParams';
+export * from './listVideosStatus';
 export * from './person';
 export * from './reviewItem';
 export * from './reviewItemStatus';
@@ -24,3 +26,5 @@ export * from './videoInputSource';
 export * from './videoSource';
 export * from './videoStatus';
 export * from './videoUpdate';
+export * from './videoUploadInput';
+export * from './videoUploadInputSource';

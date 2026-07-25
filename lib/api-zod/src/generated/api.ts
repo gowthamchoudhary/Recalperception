@@ -20,6 +20,10 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all videos in the library
  */
+export const ListVideosQueryParams = zod.object({
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']).optional()
+})
+
 export const ListVideosResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
@@ -29,8 +33,10 @@ export const ListVideosResponseItem = zod.object({
   "uploadedAt": zod.string(),
   "recordedAt": zod.string().nullish(),
   "location": zod.string().nullish(),
-  "status": zod.enum(['indexed', 'processing', 'flagged']),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })
@@ -64,8 +70,65 @@ export const CreateVideoResponse = zod.object({
   "uploadedAt": zod.string(),
   "recordedAt": zod.string().nullish(),
   "location": zod.string().nullish(),
-  "status": zod.enum(['indexed', 'processing', 'flagged']),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
+  "tags": zod.array(zod.string()),
+  "people": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Upload a video (file or URL) to VideoDB and start ingestion
+ */
+export const UploadVideoBody = zod.object({
+  "file": zod.instanceof(File).optional().describe('Video file to upload'),
+  "url": zod.string().optional().describe('Public video URL (YouTube, Google Photos, or a direct file link)'),
+  "title": zod.string().optional(),
+  "recordedAt": zod.string().optional(),
+  "location": zod.string().optional(),
+  "source": zod.enum(['gallery', 'google_photos', 'youtube']).optional()
+})
+
+export const UploadVideoResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "durationSeconds": zod.number(),
+  "uploadedAt": zod.string(),
+  "recordedAt": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
+  "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
+  "tags": zod.array(zod.string()),
+  "people": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Run the privacy/sensitivity scene scan for a video
+ */
+export const PrivacyScanVideoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PrivacyScanVideoResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "durationSeconds": zod.number(),
+  "uploadedAt": zod.string(),
+  "recordedAt": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
+  "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })
@@ -87,8 +150,10 @@ export const GetVideoResponse = zod.object({
   "uploadedAt": zod.string(),
   "recordedAt": zod.string().nullish(),
   "location": zod.string().nullish(),
-  "status": zod.enum(['indexed', 'processing', 'flagged']),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 }).and(zod.object({
@@ -124,8 +189,10 @@ export const UpdateVideoResponse = zod.object({
   "uploadedAt": zod.string(),
   "recordedAt": zod.string().nullish(),
   "location": zod.string().nullish(),
-  "status": zod.enum(['indexed', 'processing', 'flagged']),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })

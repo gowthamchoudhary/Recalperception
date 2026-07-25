@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { sweepInterruptedIngestions } from "./lib/ingestion";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,9 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// A restart kills in-flight background ingestion; surface that explicitly.
+void sweepInterruptedIngestions();
 
 app.listen(port, (err) => {
   if (err) {
