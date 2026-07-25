@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Recall API — personal video memory search engine
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: videos
+    description: Video library operations
+  - name: search
+    description: Memory search operations
+  - name: review
+    description: Needs-review queue operations
+  - name: people
+    description: Tagged people operations
+  - name: stats
+    description: Dashboard summary
 paths:
   /healthz:
     get:
@@ -24,6 +34,199 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /videos:
+    get:
+      operationId: listVideos
+      tags: [videos]
+      summary: List all videos in the library
+      responses:
+        "200":
+          description: Video list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Video"
+    post:
+      operationId: createVideo
+      tags: [videos]
+      summary: Add (upload) a new video
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+  /videos/{id}:
+    get:
+      operationId: getVideo
+      tags: [videos]
+      summary: Get a single video with details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    patch:
+      operationId: updateVideo
+      tags: [videos]
+      summary: Update video metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteVideo
+      tags: [videos]
+      summary: Delete a video
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /search:
+    get:
+      operationId: searchMemories
+      tags: [search]
+      summary: Search the video archive by natural language query
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchResult"
+  /review-items:
+    get:
+      operationId: listReviewItems
+      tags: [review]
+      summary: List pending needs-review items
+      responses:
+        "200":
+          description: Review items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReviewItem"
+  /review-items/{id}:
+    patch:
+      operationId: resolveReviewItem
+      tags: [review]
+      summary: Accept or discard a review item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewResolution"
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /people:
+    get:
+      operationId: listPeople
+      tags: [people]
+      summary: List tagged people with appearance counts
+      responses:
+        "200":
+          description: People list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Library summary stats for the dashboard
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LibraryStats"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +236,119 @@ components:
           type: string
       required:
         - status
-
+    ApiMessage:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    Video:
+      type: object
+      required:
+        [id, title, thumbnailUrl, durationSeconds, uploadedAt, status, tags, people, source]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        thumbnailUrl: { type: string }
+        videoUrl: { type: ["string", "null"] }
+        durationSeconds: { type: integer }
+        uploadedAt: { type: string }
+        recordedAt: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+        status: { type: string, enum: [indexed, processing, flagged] }
+        source: { type: string, enum: [gallery, google_photos, youtube] }
+        tags:
+          type: array
+          items: { type: string }
+        people:
+          type: array
+          items: { type: string }
+    VideoDetail:
+      allOf:
+        - $ref: "#/components/schemas/Video"
+        - type: object
+          required: [transcriptExcerpt]
+          properties:
+            transcriptExcerpt: { type: ["string", "null"] }
+            sceneCount: { type: ["integer", "null"] }
+    VideoInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        thumbnailUrl: { type: string }
+        videoUrl: { type: string }
+        durationSeconds: { type: integer }
+        recordedAt: { type: string }
+        location: { type: string }
+        source: { type: string, enum: [gallery, google_photos, youtube] }
+        tags:
+          type: array
+          items: { type: string }
+        people:
+          type: array
+          items: { type: string }
+    VideoUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        location: { type: string }
+        recordedAt: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        people:
+          type: array
+          items: { type: string }
+    SearchResult:
+      type: object
+      required: [id, videoId, videoTitle, thumbnailUrl, snippet, matchType, timestampSeconds, durationSeconds]
+      properties:
+        id: { type: integer }
+        videoId: { type: integer }
+        videoTitle: { type: string }
+        thumbnailUrl: { type: string }
+        videoUrl: { type: ["string", "null"] }
+        snippet: { type: string }
+        matchType: { type: string, enum: [speech, scene, person] }
+        timestampSeconds: { type: integer }
+        durationSeconds: { type: integer }
+        people:
+          type: array
+          items: { type: string }
+        recordedAt: { type: ["string", "null"] }
+        location: { type: ["string", "null"] }
+    ReviewItem:
+      type: object
+      required: [id, videoId, videoTitle, thumbnailUrl, reason, status, createdAt]
+      properties:
+        id: { type: integer }
+        videoId: { type: integer }
+        videoTitle: { type: string }
+        thumbnailUrl: { type: string }
+        reason: { type: string }
+        detail: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, accepted, discarded] }
+        createdAt: { type: string }
+    ReviewResolution:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [accepted, discarded] }
+    Person:
+      type: object
+      required: [id, name, appearanceCount]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        appearanceCount: { type: integer }
+        lastSeenAt: { type: ["string", "null"] }
+    LibraryStats:
+      type: object
+      required: [totalVideos, totalHoursIndexed, totalPeople, totalScenes, pendingReviewCount]
+      properties:
+        totalVideos: { type: integer }
+        totalHoursIndexed: { type: number }
+        totalPeople: { type: integer }
+        totalScenes: { type: integer }
+        pendingReviewCount: { type: integer }

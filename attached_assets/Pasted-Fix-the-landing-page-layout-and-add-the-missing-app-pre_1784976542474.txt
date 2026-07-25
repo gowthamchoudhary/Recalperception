@@ -1,0 +1,43 @@
+Fix the landing page layout and add the missing app preview section, then build the backend. Do these in order:
+
+1. Fix the hero card layout (currently broken/overlapping)
+
+The decorative floating cards (trekking photo, "Moment Found" card, clip card) must never overlap the headline text. Fix this:
+
+Push the trekking photo card further left and up, clear of the headline's left edge
+Push the "Moment Found" dark card further right and up, clear of the headline's right edge — right now it's overlapping the word "you've," that must not happen
+Reduce card rotation to a subtle 3–6 degrees max, not enough to make them look like they're falling over
+Set the headline text to z-index: 10 and give it a solid background-safe zone (no floating card should intersect its bounding box at any screen width)
+On smaller screens, floating cards should shrink/fade before they'd start overlapping text, not get hidden abruptly
+
+2. Add the missing product-preview panel (this is the main thing that's missing)
+
+Below the hero's headline/CTA area, add a large centered app preview panel — a rounded dark window (rounded corners ~20px, subtle border, soft shadow, like a floating app screenshot) containing a live preview of the actual product:
+
+Top row inside the panel: small app icon + "recall" wordmark on the left, tabs on the right — "Library 24", "People 8", "Review 2", plus a small "+" button — styled as pill-shaped tab buttons, active tab in white/light background, inactive tabs muted gray text
+Below the tabs: a large rounded search input bar, placeholder text "Ask anything about your memories...", search icon on the left
+Below the search bar: a horizontal row of small video card thumbnails (4–5 visible), each showing a thumbnail image, a short title, and a small metadata line (e.g. "Coorg trip · 3 people · 2d ago") — styled like compact cards, consistent with the dark panel's palette (dark card backgrounds, white/light text, one card per video)
+This panel should sit forward and centered, slightly overlapping the bottom edge of the hero section as its visual anchor — this is the single most important visual element on the page, treat it that way
+
+3. Backend — Node.js/Express (no TypeScript), Supabase, VideoDB SDK, no mock data
+
+Env vars: VIDEODB_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, GROQ_API_KEY
+
+Tables:
+
+videos — id, user_id, videodb_video_id, title, source, upload_date, status (processing/indexed/needs_review), created_at
+review_queue — id, video_id, flag_reason, status (pending/accepted/discarded)
+video_tags — id, video_id, person_name (optional, added post-processing only)
+
+Endpoints:
+
+POST /api/videos/upload — uploads to VideoDB, kicks off spoken-word + scene indexing async, inserts videos row as processing, returns immediately
+POST /api/videos/:id/privacy-scan — sensitivity scene-index pass; if flagged, insert into review_queue and set status needs_review without blocking other videos; if clean, set status indexed
+GET /api/videos — indexed videos only, for the dashboard grid and the new preview panel
+GET /api/review-queue — flagged items
+POST /api/review-queue/:id/accept — moves video to indexed
+POST /api/review-queue/:id/discard — deletes from VideoDB, removes row
+POST /api/search — VideoDB Search V2 semantic search, returns matched clips (video id, title, timestamp, snippet, total duration — so frontend knows timeline-scrubber vs. direct-clip view)
+PATCH /api/videos/:id/tags — optional person-name tag, post-processing only
+
+Match the response shapes to whatever the frontend components currently expect for mock data, so the preview panel and dashboard just start showing real data once this is wired in.

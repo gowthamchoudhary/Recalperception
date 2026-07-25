@@ -1,0 +1,52 @@
+Build a complete web app UI called "Recall" — a personal video memory search engine. Match the exact visual design system described below, pixel-for-pixel: same background treatment, typography, spacing, curves, and color logic as the reference, applied to this app's own content.
+
+Design system:
+
+Background: soft off-white/cream (
+#f4f4f2), with a large soft radial white glow centered behind the hero content
+Headline typography: very large (60–70px), bold, tight letter-spacing, black, sans-serif (Inter/Helvetica-style), mixed with one word in a monospace font (JetBrains Mono) for contrast — the monospace word should feel like a "stamped" accent, not decorative
+Accent color: green (
+#1c8a3e), used sparingly — one pill-shaped highlight bar, small tags, and CTA highlights only, never flooding the page
+Cards: white, rounded corners (14–16px radius), soft drop shadows, slightly rotated and scattered/fanned around the hero like floating physical objects, each with a gentle floating/bobbing animation
+One card should be dark (near-black 
+#14140f) with white text — this is the "moment found" card, used to preview a matched result
+Buttons: solid black pill/rounded-rect primary button, plain text secondary link with underline-on-hover
+Overall feel: clean, confident, editorial, lots of whitespace, nothing cluttered, smooth micro-interactions on hover — no heavy gradients, no glassmorphism, no neon
+
+Screens to build, all in the same design system:
+
+1. Landing / Hero
+
+Top nav: logo mark + wordmark "recall" (lowercase), nav links (Search, Library, People, Review), right side: theme toggle icon + "Log in" text link + "Get started" black pill button
+Headline: "Everything you've filmed. Found." (with "filmed." in green, "Found." in monospace)
+Subhead: "Search a lifetime of video like it's one searchable memory — by what was said, what happened, and who was there."
+Green pill line: "for your gallery, Google Photos, or YouTube"
+CTA row: black "Start searching →" button + "See how indexing works" text link
+Floating cards around the hero: a stack of 2–3 tilted video-thumbnail cards (each tagged like "TREKKING — Coorg, Aug 2024"), a dark "moment found" card on the right showing a matched transcript line + a waveform scrubber with timestamp, and a small clip-result card at the bottom left with a video thumbnail, title, and "Scene indexed · 3 people tagged" caption
+
+2. Login / Register
+
+Same background/glow treatment, centered card, minimal form (email + password, or "Continue with Google"), same button styling as hero, small toggle link between login/register states
+
+3. Dashboard (main authenticated home)
+
+Persistent top nav (same as landing, but now shows a notification bell icon with a small unread dot, and a user avatar circle instead of login/register links)
+Prominent centered search bar as the hero element of this screen — large, rounded, placeholder text like "Ask anything about your memories..."
+Below the search bar: a grid of uploaded video cards (thumbnail, title, upload date, small tags row showing extracted info like people/topics), each card with an edit/update icon on hover
+An "Upload" button (black pill, top-right of the grid or floating action button) that opens an upload flow (drag-and-drop zone, same rounded-card style, progress bar during ingestion)
+A separate "Needs Review" section/tab — a quiet, non-blocking list of flagged items with a short reason tag, each with Accept/Discard actions, visually distinct (softer background) so it doesn't feel urgent or alarming
+
+4. Search transition
+
+When a query is submitted from the dashboard search bar, animate a smooth, confident transition (scale/fade, not jarring) into a results-loading state — show a short progress sequence with small status text like "Understanding your query...", "Searching your archive...", "Found 4 matches" before landing on results
+
+5. Search results screen
+
+Query shown at top, editable
+Results as a vertical list of clip cards: thumbnail, title, matched snippet/quote, timestamp
+Tapping a result opens a video player with a timeline scrubber:
+If the source video is long, show a full timeline with a clearly marked highlighted segment where the match occurred, playback starts at that matched timestamp by default, and the user can drag back to watch from the beginning or anywhere else
+If the source video is short, just show the clip directly, no scrubber clutter needed
+Below the player: extracted metadata (people tagged, transcript excerpt, date)
+
+Keep every screen consistent with the same type scale, card radius, shadow depth, and spacing rhythm established in the hero — this should read as one continuous product, not separate templates stitched together.
