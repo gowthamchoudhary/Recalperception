@@ -296,13 +296,8 @@ export default function Home() {
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[8px] relative overflow-hidden bg-[#14140f]">
+                <div className="w-full h-full rounded-[8px] overflow-hidden bg-[#14140f]">
                   <video src={DEMO.videos[0].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-2.5 left-2.5 right-2.5">
-                    <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.videos[0].tag}</p>
-                    <p className="text-[10px] text-white/80 truncate">{DEMO.videos[0].title}</p>
-                  </div>
                 </div>
               </StitchedCard>
             </div>
@@ -313,13 +308,8 @@ export default function Home() {
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[8px] relative overflow-hidden bg-[#14140f]">
+                <div className="w-full h-full rounded-[8px] overflow-hidden bg-[#14140f]">
                   <video src={DEMO.videos[1].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-2.5 left-2.5 right-2.5">
-                    <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.videos[1].tag}</p>
-                    <p className="text-[10px] text-white/80 truncate">{DEMO.videos[1].title}</p>
-                  </div>
                 </div>
               </StitchedCard>
             </div>
@@ -330,13 +320,8 @@ export default function Home() {
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[8px] relative overflow-hidden bg-[#14140f]">
+                <div className="w-full h-full rounded-[8px] overflow-hidden bg-[#14140f]">
                   <video src={DEMO.videos[2].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute bottom-2.5 left-2.5 right-2.5">
-                    <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.videos[2].tag}</p>
-                    <p className="text-[10px] text-white/80 truncate">{DEMO.videos[2].title}</p>
-                  </div>
                 </div>
               </StitchedCard>
             </div>
@@ -407,13 +392,8 @@ export default function Home() {
               inset={5}
               radius={9}
             >
-              <div className="w-full h-[135px] xl:h-[150px] rounded-[8px] relative overflow-hidden bg-[#14140f]">
+              <div className="w-full h-[135px] xl:h-[150px] rounded-[8px] overflow-hidden bg-[#14140f]">
                 <video src={DEMO.hackathon.src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div className="absolute bottom-2.5 left-2.5 right-2.5">
-                  <p className="text-[9px] font-bold text-white uppercase tracking-wide">{DEMO.hackathon.tag}</p>
-                  <p className="text-[10px] text-white/80 truncate">{DEMO.hackathon.title}</p>
-                </div>
               </div>
             </StitchedCard>
           </div>
