@@ -548,6 +548,9 @@ if(videoUploadInput.location !== undefined) {
 if(videoUploadInput.source !== undefined) {
  formData.append(`source`, videoUploadInput.source);
  }
+if(videoUploadInput.privacyRequest !== undefined) {
+ formData.append(`privacyRequest`, videoUploadInput.privacyRequest);
+ }
 
   return customFetch<Video>(getUploadVideoUrl(),
   {

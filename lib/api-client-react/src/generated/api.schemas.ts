@@ -102,6 +102,11 @@ export interface VideoUploadInput {
   recordedAt?: string;
   location?: string;
   source?: VideoUploadInputSource;
+  /**
+     * Optional free-text request applied to this upload's privacy scan — e.g. "skip anything with my ex". Matching scenes are flagged for review instead of auto-included.
+     * @maxLength 500
+     */
+  privacyRequest?: string;
 }
 
 export interface VideoUpdate {

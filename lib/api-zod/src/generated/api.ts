@@ -107,13 +107,18 @@ export const ListVideosResponse = zod.array(ListVideosResponseItem)
 /**
  * @summary Upload a video (file or URL) to VideoDB and start ingestion
  */
+export const uploadVideoBodyPrivacyRequestMax = 500;
+
+
+
 export const UploadVideoBody = zod.object({
   "file": zod.instanceof(File).optional().describe('Video file to upload'),
   "url": zod.string().optional().describe('Public video URL (YouTube, Google Photos, or a direct file link)'),
   "title": zod.string().optional(),
   "recordedAt": zod.string().optional(),
   "location": zod.string().optional(),
-  "source": zod.enum(['gallery', 'google_photos', 'youtube']).optional()
+  "source": zod.enum(['gallery', 'google_photos', 'youtube']).optional(),
+  "privacyRequest": zod.string().max(uploadVideoBodyPrivacyRequestMax).optional().describe('Optional free-text request applied to this upload\'s privacy scan — e.g. \"skip anything with my ex\". Matching scenes are flagged for review instead of auto-included.')
 })
 
 export const UploadVideoResponse = zod.object({

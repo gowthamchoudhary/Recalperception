@@ -448,6 +448,13 @@ components:
         recordedAt: { type: string }
         location: { type: string }
         source: { type: string, enum: [gallery, google_photos, youtube] }
+        privacyRequest:
+          type: string
+          maxLength: 500
+          description: >-
+            Optional free-text request applied to this upload's privacy scan —
+            e.g. "skip anything with my ex". Matching scenes are flagged for
+            review instead of auto-included.
     VideoUpdate:
       type: object
       properties:

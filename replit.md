@@ -32,7 +32,8 @@ A personal video memory search engine — search a lifetime of video by what was
 
 ## Architecture decisions
 
-- Video intelligence is VideoDB (SDK `videodb`, key `VIDEODB_API_KEY`): `POST /api/videos/upload` (multipart file or URL) inserts a `processing` row and runs a background pipeline in `artifacts/api-server/src/lib/ingestion.ts` — upload → spoken-word index → transcript excerpt → privacy scene scan. Clean scan → `indexed`; sensitive scenes or scan failure → `flagged` + review item; pipeline error → `failed` + `indexError`.
+- Video intelligence is VideoDB (SDK `videodb`, key `VIDEODB_API_KEY`): `POST /api/videos/upload` (multipart file or URL) inserts a `processing` row and runs a background pipeline in `artifacts/api-server/src/lib/ingestion.ts` — upload → spoken-word index → transcript excerpt → privacy scene scan. Clean scan → `indexed`; sensitive scenes or scan failure → `flagged` + review item; pipeline error → `failed` + `indexError`. Batches are client-side: one request per file, each with its own independent pipeline, so one flagged/failed video never blocks the rest.
+- Privacy scan is a single combined pass: baseline categories (screens, documents/IDs, financial, nudity, medical, plates — regex over scene descriptions) PLUS the upload's optional `privacyRequest` (stored on the video row, reused by manual rescans). The scene prompt tells the model to append the `USER_REQUEST_MATCH` sentinel to matching descriptions; review items are created one per matched reason with explicit sourcing — `Baseline: <category>` vs `Your request: matches "<text>"` — and the sentinel is stripped before details are stored.
 - Search is hybrid: VideoDB semantic search over real uploads (rows with `videodbVideoId`, synthetic negative result ids) merged with keyword scoring over seeded "moments". No silent fallbacks — VideoDB errors surface as 502/503 to the client.
 - Review queue: Accept → video back to `indexed` once no pending items; Discard → deletes from VideoDB first, then removes the video + moments + review items entirely.
 - Boot sweep marks rows stuck in `processing` as `failed` on server restart (background jobs don't survive restarts).
@@ -43,7 +44,7 @@ A personal video memory search engine — search a lifetime of video by what was
 ## Product
 
 - Landing hero with floating memory cards matching the user's reference design (cream #f4f4f2, green #1c8a3e accent, dark moment-found card, JetBrains Mono stamped accent)
-- Dashboard: search bar, video library grid with status badges (Indexing/Needs review/Failed), real file+URL upload to VideoDB, 4s polling while ingesting, Needs Review queue with Accept/Discard
+- Dashboard: search bar, video library grid with status badges (Indexing/Needs review/Failed), batch upload dialog (multi-file picker, folder picker, drag-drop, links one-per-line, per-file queue rows, exactly one optional "Anything you don't want processed?" field, concurrency 3), 4s polling while ingesting, Needs Review queue with Accept/Discard
 - Search with staged loading transition and results list; player overlay with highlighted matched segment
 
 ## User preferences

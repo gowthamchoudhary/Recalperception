@@ -32,6 +32,9 @@ export const videosTable = pgTable("videos", {
   videodbVideoId: text("videodb_video_id"),
   playerUrl: text("player_url"),
   indexError: text("index_error"),
+  // Free-text "don't process this" request captured at upload time; folded
+  // into every privacy scan for this video (including manual rescans).
+  privacyRequest: text("privacy_request"),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({

@@ -148,6 +148,11 @@ router.post(
         ? file.originalname.replace(/\.[^.]+$/, "").trim() || "Uploaded video"
         : deriveTitleFromUrl(url!));
 
+    const privacyRequestRaw =
+      typeof body["privacyRequest"] === "string" ? body["privacyRequest"] : "";
+    const privacyRequest =
+      privacyRequestRaw.replace(/\s+/g, " ").trim().slice(0, 500) || null;
+
     const bodySource = body["source"];
     const source =
       bodySource === "youtube" ||
@@ -180,6 +185,7 @@ router.post(
           source,
           tags: [],
           people: [],
+          privacyRequest,
         })
         .returning();
       video = inserted[0]!;

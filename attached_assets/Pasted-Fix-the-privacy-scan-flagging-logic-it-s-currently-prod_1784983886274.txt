@@ -1,0 +1,15 @@
+Fix the privacy-scan flagging logic — it's currently producing contradictory results. Example: a clip was flagged with the reason "Visible screen content detected by privacy scan," but the generated explanation for that same flag says "does not show a computer, phone, or laptop." The system is flagging content its own analysis says isn't there. Find and fix the actual bug, don't just patch the message.
+
+Investigate these likely causes and report which one it actually was:
+
+The scene-index prompt sent to the model may be poorly scoped — e.g. asking it to describe and judge in the same pass, causing the flagging logic to trigger on the wrong signal or mis-parse the response
+The flagging decision might not actually be reading the model's structured verdict correctly — e.g. flagging on the presence of any response text rather than checking a real true/false or category match
+The categories being scanned for might be too broad or ambiguously worded, causing false positives on unrelated content
+
+Fix requirements:
+
+The privacy scan should check explicit, distinct categories — not one vague "sensitive content" prompt. Use clear separate checks: nudity/intimate content, visible documents/IDs, financial information, medical content, visible screens showing private info (passwords, personal messages, private accounts) — each a distinct yes/no signal, not a single blended judgment.
+The reason shown to the user must directly match the category that actually triggered, and the explanation text must be logically consistent with the flag — if you flag "visible screen content," the explanation must actually describe a visible screen, not contradict itself.
+Add a confidence threshold — low-confidence borderline detections should not auto-flag; only flag on reasonably confident matches, to cut down false positives like this one.
+Test against at least 3 real cases from the current library: one that should clearly pass clean, one that should clearly flag (if you don't have one, describe what content would legitimately trigger each category), and re-verify the Ronaldo clip specifically now passes clean since it has no actual sensitive content.
+Report exactly what the root cause was, not just that it's "fixed."

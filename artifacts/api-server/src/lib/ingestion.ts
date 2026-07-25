@@ -20,11 +20,32 @@ export function isScanInProgress(videoRowId: number): boolean {
 }
 
 /**
- * Prompt used for the privacy scene-index pass. VideoDB describes each scene;
- * we then look for sensitive markers in those descriptions.
+ * Baseline prompt for the privacy scene-index pass — always on. VideoDB
+ * describes each scene; we then look for sensitive markers in those
+ * descriptions.
  */
-const SCENE_PROMPT =
-  "Describe this scene factually in one or two sentences. Explicitly mention if the scene shows any of the following: a computer, phone, or laptop screen with readable content; personal documents such as passports, ID cards, credit cards, or bank statements; people who are undressed or in a private moment; a medical setting such as a hospital or clinic; or a readable license plate.";
+const BASELINE_SCENE_PROMPT =
+  "Describe this scene factually in one or two sentences. Explicitly mention if the scene shows any of the following: a computer, phone, or laptop screen with readable content; personal documents such as passports, ID cards, or driver's licenses; financial information such as credit cards, bank statements, or account numbers; people who are undressed or in a private moment; a medical setting such as a hospital or clinic, or visible medication; or a readable license plate.";
+
+/**
+ * Token the scene model is told to append when a scene matches the user's
+ * own "don't process this" request. Detection then only needs an exact
+ * substring check — no fragile keyword guessing over free-form text.
+ */
+const USER_MATCH_SENTINEL = "USER_REQUEST_MATCH";
+
+/** One scan pass covers baseline categories plus the user's request, if any. */
+function buildScenePrompt(privacyRequest: string | null): string {
+  // Strip any sentinel occurrences from the user's own text so a request
+  // can never trick the detector into matching by self-reference.
+  const request = privacyRequest
+    ?.replaceAll(USER_MATCH_SENTINEL, "")
+    .replace(/\s+/g, " ")
+    .replace(/"/g, "'")
+    .trim();
+  if (!request) return BASELINE_SCENE_PROMPT;
+  return `${BASELINE_SCENE_PROMPT} The owner of this video also asked: "${request.slice(0, 300)}". If this scene shows or matches what they described, append the exact token ${USER_MATCH_SENTINEL} to the end of your description.`;
+}
 
 const SENSITIVE_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   {
@@ -34,8 +55,13 @@ const SENSITIVE_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   },
   {
     pattern:
-      /\bpassport\b|\bcredit card\b|\bdebit card\b|\bid card\b|\bdriver'?s licen[cs]e\b|\bbank statement\b|\bpersonal documents?\b/i,
-    label: "Personal documents",
+      /\bpassport\b|\bid card\b|\bdriver'?s licen[cs]e\b|\bpersonal documents?\b/i,
+    label: "Personal documents or IDs",
+  },
+  {
+    pattern:
+      /\bcredit card\b|\bdebit card\b|\bbank statement\b|\baccount numbers?\b|\bfinancial (?:info|information|details)\b/i,
+    label: "Financial information",
   },
   {
     pattern: /\bnude\b|\bnudity\b|\bundressed\b|\bunclothed\b|\bprivate moment\b/i,
@@ -185,7 +211,7 @@ async function runPrivacyScanLocked(videoRowId: number): Promise<void> {
     const coll = await getVideoDBCollection();
     const media = await coll.getVideo(row.videodbVideoId);
     const sceneIndexId = await media.indexScenes({
-      prompt: SCENE_PROMPT,
+      prompt: buildScenePrompt(row.privacyRequest),
       name: "privacy-scan",
     });
     if (!sceneIndexId) {
@@ -216,26 +242,45 @@ async function runPrivacyScanLocked(videoRowId: number): Promise<void> {
       .set({ sceneCount: scenes.length })
       .where(eq(videosTable.id, videoRowId));
 
-    const hits: Array<{ label: string; start: number; description: string }> = [];
+    // Collect matches per reason: baseline categories via keyword patterns on
+    // the scene descriptions, PLUS the user's own request via the sentinel
+    // token the scene model was told to emit. One review item per reason, so
+    // the queue always says exactly what matched.
+    const privacyRequest = row.privacyRequest?.trim() || null;
+    const userReason = privacyRequest
+      ? `Your request: matches "${privacyRequest.length > 80 ? `${privacyRequest.slice(0, 79)}…` : privacyRequest}"`
+      : null;
+    const hitsByReason = new Map<
+      string,
+      Array<{ start: number; description: string }>
+    >();
+    const addHit = (reason: string, start: number, description: string) => {
+      const list = hitsByReason.get(reason) ?? [];
+      list.push({ start, description });
+      hitsByReason.set(reason, list);
+    };
     for (const scene of scenes) {
-      const description =
-        typeof scene.description === "string" ? scene.description : "";
+      const raw = typeof scene.description === "string" ? scene.description : "";
+      // Stored details must read naturally — never show the sentinel.
+      const description = raw
+        .replaceAll(USER_MATCH_SENTINEL, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      const start = Number(scene.start) || 0;
       for (const { pattern, label } of SENSITIVE_PATTERNS) {
         if (pattern.test(description)) {
-          hits.push({ label, start: Number(scene.start) || 0, description });
+          addHit(`Baseline: ${label}`, start, description);
           break;
         }
+      }
+      if (userReason && raw.includes(USER_MATCH_SENTINEL)) {
+        addHit(userReason, start, description);
       }
     }
 
     // The latest scan supersedes pending items from earlier scans: reruns
     // never stack duplicates, and a clean rerun clears stale flags.
-    if (hits.length > 0) {
-      const first = hits[0]!;
-      const extra =
-        hits.length > 1
-          ? ` (+${hits.length - 1} more flagged scene${hits.length > 2 ? "s" : ""})`
-          : "";
+    if (hitsByReason.size > 0) {
       await db.transaction(async (tx) => {
         await tx
           .delete(reviewItemsTable)
@@ -245,18 +290,37 @@ async function runPrivacyScanLocked(videoRowId: number): Promise<void> {
               eq(reviewItemsTable.status, "pending"),
             ),
           );
-        await tx.insert(reviewItemsTable).values({
-          videoId: videoRowId,
-          reason: `${first.label} detected by privacy scan`,
-          detail: `Scene at ${formatTimestamp(first.start)}: ${excerpt(first.description, 180)}${extra}`,
-          status: "pending",
-        });
+        for (const [reason, hits] of hitsByReason) {
+          const first = hits[0]!;
+          const extra =
+            hits.length > 1
+              ? ` (+${hits.length - 1} more flagged scene${hits.length > 2 ? "s" : ""})`
+              : "";
+          await tx.insert(reviewItemsTable).values({
+            videoId: videoRowId,
+            reason,
+            detail: `Scene at ${formatTimestamp(first.start)}: ${excerpt(first.description, 180)}${extra}`,
+            status: "pending",
+          });
+        }
         await tx
           .update(videosTable)
           .set({ status: "flagged", indexError: null })
           .where(eq(videosTable.id, videoRowId));
       });
-      logger.info({ videoRowId, hits: hits.length }, "Privacy scan flagged video");
+      // Log reason KINDS only — the user-request reason embeds the user's
+      // own privacy text, which must not end up in server logs.
+      logger.info(
+        {
+          videoRowId,
+          baselineReasons: [...hitsByReason.keys()].filter((r) =>
+            r.startsWith("Baseline: "),
+          ),
+          userRequestMatched: userReason ? hitsByReason.has(userReason) : false,
+          sceneCount: scenes.length,
+        },
+        "Privacy scan flagged video",
+      );
     } else {
       await db.transaction(async (tx) => {
         await tx
