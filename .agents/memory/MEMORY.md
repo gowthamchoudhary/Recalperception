@@ -1,4 +1,5 @@
 # Memory Index
 
-- [VideoDB SDK quirks](videodb-sdk.md) — shots is a property not a method, uploads return unions, scene indexing is async-poll, blocked postinstall is harmless, streamUrl is HLS.
+- [VideoDB SDK quirks](videodb-sdk.md) — shots is a property not a method, uploads return unions, async-poll scene indexing, zero-hit search raises "No results found", streamUrl is HLS.
+- [Bundled-server library asset gotchas](bundled-server-assets.md) — esbuild-bundled Express servers break libs that read files via __dirname (e.g. connect-pg-simple table.sql); own such tables in the app schema.
 - [Orval multipart DOM lib](orval-multipart-dom-lib.md) — `format: binary` schemas need `lib: ["es2022","dom"]` in lib/api-zod tsconfig or codegen typecheck fails on File/Blob.

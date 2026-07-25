@@ -1,10 +1,63 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Button } from "@/components/ui";
-import { Bell, Moon } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { useCurrentUser, useLogoutAction } from "@/lib/auth";
+
+function initialsOf(name: string, email: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
+  }
+  if (parts.length === 1 && parts[0]!.length > 0) {
+    return parts[0]!.slice(0, 2).toUpperCase();
+  }
+  return (email[0] ?? "?").toUpperCase();
+}
+
+function UserMenu() {
+  const { user } = useCurrentUser();
+  const { logout, isPending } = useLogoutAction();
+  const [open, setOpen] = useState(false);
+
+  if (!user) {
+    return <div className="w-9 h-9 rounded-full bg-secondary animate-pulse ml-2" />;
+  }
+
+  return (
+    <div className="relative ml-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold hover:opacity-90 transition-opacity"
+        aria-label="Account menu"
+      >
+        {initialsOf(user.name, user.email)}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-12 z-50 w-64 bg-card border border-border rounded-2xl shadow-xl p-2 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="px-4 py-3 border-b border-border/60 mb-1">
+              <p className="font-bold text-sm truncate">{user.name}</p>
+              <p className="text-xs text-muted-foreground font-medium truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={() => { setOpen(false); logout(); }}
+              disabled={isPending}
+              className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-60"
+            >
+              <LogOut className="w-4 h-4" />
+              {isPending ? "Logging out…" : "Log out"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function Navbar({ variant = "public" }: { variant?: "public" | "app" }) {
   const [location] = useLocation();
-  
+
   return (
     <nav className="w-full flex items-center justify-between px-6 md:px-10 py-5 fixed top-0 z-50 bg-background/50 backdrop-blur-xl border-b border-transparent">
        <Link href={variant === "public" ? "/" : "/dashboard"} className="flex items-center gap-2 group">
@@ -25,15 +78,12 @@ export function Navbar({ variant = "public" }: { variant?: "public" | "app" }) {
          <div className="hidden md:flex items-center gap-8 text-sm font-medium">
            <Link href="/dashboard" className={location === "/dashboard" ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Library</Link>
            <Link href="/search" className={location.startsWith("/search") ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Search</Link>
-           <Link href="/dashboard" className={location === "/people" ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>People</Link>
-           <Link href="/dashboard" className={location === "/review" ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Review</Link>
+           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
+           <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
          </div>
        )}
 
        <div className="flex items-center gap-3">
-         <Button variant="ghost" size="icon" className="rounded-full hidden md:flex">
-           <Moon className="w-4 h-4" />
-         </Button>
          {variant === "public" ? (
            <>
              <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4 mx-2">Log in</Link>
@@ -42,15 +92,7 @@ export function Navbar({ variant = "public" }: { variant?: "public" | "app" }) {
              </Link>
            </>
          ) : (
-           <>
-             <Button variant="ghost" size="icon" className="rounded-full relative">
-               <Bell className="w-5 h-5" />
-               <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full border-2 border-background" />
-             </Button>
-             <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold ml-2">
-               ME
-             </div>
-           </>
+           <UserMenu />
          )}
        </div>
     </nav>

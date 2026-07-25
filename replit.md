@@ -10,6 +10,7 @@ A personal video memory search engine — search a lifetime of video by what was
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `SESSION_SECRET` — session cookie signing (API server refuses to boot without it)
 - Optional env: `VIDEODB_API_KEY` — enables real video ingestion + semantic search (routes return 503 without it)
 
 ## Stack
@@ -24,9 +25,9 @@ A personal video memory search engine — search a lifetime of video by what was
 ## Where things live
 
 - API contract: `lib/api-spec/openapi.yaml` (source of truth, run codegen after edits)
-- DB schema: `lib/db/src/schema/` (videos, moments, review_items)
-- API routes: `artifacts/api-server/src/routes/` (videos, search, review, people, stats)
-- Frontend: `artifacts/recall/src/` — pages for landing, login (UI-only), dashboard, search results
+- DB schema: `lib/db/src/schema/` (users, session, videos, moments, review_items)
+- API routes: `artifacts/api-server/src/routes/` (auth, videos, search, review, people, stats)
+- Frontend: `artifacts/recall/src/` — pages for landing, login/signup, dashboard, search results; `src/lib/auth.tsx` has `useCurrentUser`/logout helpers
 - Seed thumbnails: `artifacts/recall/public/thumbs/` (AI-generated placeholders)
 
 ## Architecture decisions
@@ -35,8 +36,9 @@ A personal video memory search engine — search a lifetime of video by what was
 - Search is hybrid: VideoDB semantic search over real uploads (rows with `videodbVideoId`, synthetic negative result ids) merged with keyword scoring over seeded "moments". No silent fallbacks — VideoDB errors surface as 502/503 to the client.
 - Review queue: Accept → video back to `indexed` once no pending items; Discard → deletes from VideoDB first, then removes the video + moments + review items entirely.
 - Boot sweep marks rows stuck in `processing` as `failed` on server restart (background jobs don't survive restarts).
-- Auth is UI-only (login page navigates to dashboard); no real auth backend yet.
-- Seeded videos have `videoUrl: null`; real uploads get VideoDB `streamUrl` (HLS) + `playerUrl`. The player overlay and hero cards remain swappable media slots.
+- Auth is self-managed: scrypt-hashed passwords (`salt:hex`, timingSafeEqual) in `users`, express-session + connect-pg-simple Postgres sessions (survive restarts/refresh), session regenerated on login/signup, cookie httpOnly/lax (secure in prod), trust proxy 1. All data routes sit behind `requireAuth` and every query is scoped to the session's user id (`/dashboard` and `/search` are also route-guarded client-side).
+- Signup adopts any videos with `user_id IS NULL` — a one-time hand-off of pre-auth uploads to the first account; inert afterwards.
+- Real uploads get VideoDB `streamUrl` (HLS) + `playerUrl` and play via hls.js (player overlay seeks to the matched moment; landing hero cards run muted HLS loops when logged in, stock imagery when logged out).
 
 ## Product
 
@@ -52,7 +54,9 @@ A personal video memory search engine — search a lifetime of video by what was
 
 - Body schemas in the OpenAPI spec must use entity-shaped names (`VideoInput`, not `CreateVideoBody`) to avoid TS2308 collisions after codegen.
 - `lib/api-zod/tsconfig.json` needs `"lib": ["es2022", "dom"]` — orval generates `zod.instanceof(File)`/`Blob` for multipart schemas (fine at runtime on Node 20+).
-- videodb SDK: `SearchResult.shots` is a property (not a method); pnpm blocks its postinstall script — harmless, it only fetches optional capture binaries.
+- videodb SDK: `SearchResult.shots` is a property (not a method); pnpm blocks its postinstall script — harmless, it only fetches optional capture binaries. Zero-hit semantic search *raises* "No results found" — the search route maps that to an empty result list.
+- connect-pg-simple's `createTableIfMissing` fails under the esbuild-bundled server (it can't resolve its `table.sql` asset from `dist/`) — the `session` table is owned by the drizzle schema instead; keep that option off.
+- Don't use `format: email` in the OpenAPI spec — orval emits zod-v4's top-level `zod.email()` against the zod v3 import and the generated file fails typecheck. Validate email format server-side.
 
 ## Pointers
 

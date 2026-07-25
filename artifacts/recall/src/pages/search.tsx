@@ -98,7 +98,13 @@ export default function Search() {
                     onClick={() => setSelectedResultId(result.id)}
                   >
                     <div className="w-48 aspect-video rounded-xl overflow-hidden bg-secondary shrink-0 relative">
-                      <img src={result.thumbnailUrl || "/images/trekking.jpg"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                      {result.thumbnailUrl ? (
+                        <img src={result.thumbnailUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                          <Play className="w-8 h-8" />
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                         <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-100 scale-90">
                           <Play className="w-4 h-4 text-white fill-white" />
@@ -225,9 +231,10 @@ function PlayerOverlay({ result, onClose }: { result: any, onClose: () => void }
                />
              ) : (
                <>
-                 {/* Swappable slot for real video playback */}
-                 <div className="absolute inset-0">
-                   <img src={result.thumbnailUrl || "/images/trekking.jpg"} className="w-full h-full object-cover opacity-80" alt="Video" />
+                 <div className="absolute inset-0 bg-black">
+                   {result.thumbnailUrl && (
+                     <img src={result.thumbnailUrl} className="w-full h-full object-cover opacity-80" alt="Video" />
+                   )}
                  </div>
                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                    <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 hover:scale-105 transition-all">

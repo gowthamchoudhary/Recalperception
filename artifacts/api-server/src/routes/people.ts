@@ -1,11 +1,16 @@
 import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
 import { db, videosTable } from "@workspace/db";
 import { ListPeopleResponse } from "@workspace/api-zod";
+import { currentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.get("/people", async (_req, res): Promise<void> => {
-  const videos = await db.select().from(videosTable);
+router.get("/people", async (req, res): Promise<void> => {
+  const videos = await db
+    .select()
+    .from(videosTable)
+    .where(eq(videosTable.userId, currentUserId(req)));
   const byName = new Map<
     string,
     { count: number; lastSeenAt: string | null }

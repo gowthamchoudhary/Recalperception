@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Account and session operations
   - name: videos
     description: Video library operations
   - name: search
@@ -34,6 +36,86 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create an account and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupInput"
+      responses:
+        "201":
+          description: Account created and logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Incorrect credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      responses:
+        "204":
+          description: Logged out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the currently logged-in user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /videos:
     get:
       operationId: listVideos
@@ -55,23 +137,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Video"
-    post:
-      operationId: createVideo
-      tags: [videos]
-      summary: Add (upload) a new video
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VideoInput"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Video"
   /videos/upload:
     post:
       operationId: uploadVideo
@@ -346,23 +411,29 @@ components:
           properties:
             transcriptExcerpt: { type: ["string", "null"] }
             sceneCount: { type: ["integer", "null"] }
-    VideoInput:
+    User:
       type: object
-      required: [title]
+      required: [id, email, name, createdAt]
       properties:
-        title: { type: string, minLength: 1 }
-        thumbnailUrl: { type: string }
-        videoUrl: { type: string }
-        durationSeconds: { type: integer }
-        recordedAt: { type: string }
-        location: { type: string }
-        source: { type: string, enum: [gallery, google_photos, youtube] }
-        tags:
-          type: array
-          items: { type: string }
-        people:
-          type: array
-          items: { type: string }
+        id: { type: integer }
+        email: { type: string }
+        name: { type: string }
+        createdAt: { type: string }
+    SignupInput:
+      type: object
+      required: [email, password, name]
+      properties:
+        # format: email intentionally omitted — orval emits zod-v4 `zod.email()`
+        # against our zod v3 import. The server validates the format instead.
+        email: { type: string, minLength: 3 }
+        password: { type: string, minLength: 8 }
+        name: { type: string, minLength: 1 }
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
     VideoUploadInput:
       type: object
       properties:

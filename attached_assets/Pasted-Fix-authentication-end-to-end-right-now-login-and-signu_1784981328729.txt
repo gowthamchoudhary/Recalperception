@@ -1,0 +1,13 @@
+Fix authentication end to end — right now login and signup don't work at all. Audit and repair the entire auth flow, then verify it live before saying it's done.
+
+Requirements:
+
+Signup — real account creation: email + password (and/or "Continue with Google" if OAuth is already wired, otherwise skip it for now rather than half-implementing it). Passwords must be properly hashed, never stored plain. On success, create a real user row and log them in immediately — no silent failures, no dead-end submit buttons.
+Login — real session-based auth. Correct credentials log the user in and persist their session (proper cookie/token handling, not a client-side-only fake "logged in" state). Wrong credentials show a clear, honest error message, not a silent failure or a generic crash.
+Session persistence — once logged in, refreshing the page or navigating between Library/Search/People/Review must keep the user logged in. No bouncing back to logged-out state on navigation.
+Logout — must actually clear the session, not just hide UI elements.
+Route protection — the dashboard, library, search, and review pages must require a real logged-in session server-side, not just a frontend check that can be bypassed. If there's no valid session, redirect to login.
+User scoping — every video, review-queue item, and search result must be scoped to user_id from the real authenticated session — not shared/global mock data visible to anyone. Confirm this by checking the actual database queries, not just the UI.
+No mock/demo user. If there's currently a hardcoded fake "ME" user or demo session anywhere in the code, remove it entirely — the top-right avatar and any user-specific data must come from the real logged-in account, or show a logged-out state if there isn't one.
+
+Before reporting this as done: actually create a new test account, log out, log back in with it, refresh the page, and confirm the session holds and only that account's real data shows. Report exactly what you tested and the result, not just that the code compiles.

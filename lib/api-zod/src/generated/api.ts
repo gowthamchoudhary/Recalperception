@@ -18,6 +18,67 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Create an account and start a session
+ */
+export const signupBodyEmailMin = 3;
+
+export const signupBodyPasswordMin = 8;
+
+
+
+
+export const SignupBody = zod.object({
+  "email": zod.string().min(signupBodyEmailMin),
+  "password": zod.string().min(signupBodyPasswordMin),
+  "name": zod.string().min(1)
+})
+
+export const SignupResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Log in with email and password
+ */
+
+
+
+
+export const LoginBody = zod.object({
+  "email": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const LoginResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary End the current session
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Get the currently logged-in user
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary List all videos in the library
  */
 export const ListVideosQueryParams = zod.object({
@@ -41,42 +102,6 @@ export const ListVideosResponseItem = zod.object({
   "people": zod.array(zod.string())
 })
 export const ListVideosResponse = zod.array(ListVideosResponseItem)
-
-
-/**
- * @summary Add (upload) a new video
- */
-
-
-
-export const CreateVideoBody = zod.object({
-  "title": zod.string().min(1),
-  "thumbnailUrl": zod.string().optional(),
-  "videoUrl": zod.string().optional(),
-  "durationSeconds": zod.number().optional(),
-  "recordedAt": zod.string().optional(),
-  "location": zod.string().optional(),
-  "source": zod.enum(['gallery', 'google_photos', 'youtube']).optional(),
-  "tags": zod.array(zod.string()).optional(),
-  "people": zod.array(zod.string()).optional()
-})
-
-export const CreateVideoResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "thumbnailUrl": zod.string(),
-  "videoUrl": zod.string().nullish(),
-  "durationSeconds": zod.number(),
-  "uploadedAt": zod.string(),
-  "recordedAt": zod.string().nullish(),
-  "location": zod.string().nullish(),
-  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
-  "source": zod.enum(['gallery', 'google_photos', 'youtube']),
-  "playerUrl": zod.string().nullish(),
-  "indexError": zod.string().nullish(),
-  "tags": zod.array(zod.string()),
-  "people": zod.array(zod.string())
-})
 
 
 /**

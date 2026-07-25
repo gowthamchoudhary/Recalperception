@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, reviewItemsTable, videosTable, momentsTable } from "@workspace/db";
 import {
   ListReviewItemsResponse,
@@ -13,10 +13,11 @@ import {
   getVideoDBCollection,
 } from "../lib/videodb";
 import { hasPendingReviewItems } from "../lib/ingestion";
+import { currentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.get("/review-items", async (_req, res): Promise<void> => {
+router.get("/review-items", async (req, res): Promise<void> => {
   const rows = await db
     .select({
       item: reviewItemsTable,
@@ -25,7 +26,12 @@ router.get("/review-items", async (_req, res): Promise<void> => {
     })
     .from(reviewItemsTable)
     .innerJoin(videosTable, eq(reviewItemsTable.videoId, videosTable.id))
-    .where(eq(reviewItemsTable.status, "pending"));
+    .where(
+      and(
+        eq(reviewItemsTable.status, "pending"),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
 
   res.json(
     ListReviewItemsResponse.parse(
@@ -61,24 +67,29 @@ router.patch("/review-items/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [item] = await db
-    .select()
+  // Single scoped lookup: the row only comes back if the review item's video
+  // belongs to the session user — no cross-user read happens at all.
+  const [row] = await db
+    .select({ item: reviewItemsTable, video: videosTable })
     .from(reviewItemsTable)
-    .where(eq(reviewItemsTable.id, params.data.id));
-  if (!item) {
+    .innerJoin(videosTable, eq(reviewItemsTable.videoId, videosTable.id))
+    .where(
+      and(
+        eq(reviewItemsTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
+  if (!row) {
     res.status(404).json({ error: "Review item not found" });
     return;
   }
-  const [video] = await db
-    .select()
-    .from(videosTable)
-    .where(eq(videosTable.id, item.videoId));
+  const { item, video } = row;
 
   const responsePayload = {
     id: item.id,
     videoId: item.videoId,
-    videoTitle: video?.title ?? "",
-    thumbnailUrl: video?.thumbnailUrl ?? "",
+    videoTitle: video.title,
+    thumbnailUrl: video.thumbnailUrl,
     reason: item.reason,
     detail: item.detail,
     status: body.data.status,
@@ -90,7 +101,7 @@ router.patch("/review-items/:id", async (req, res): Promise<void> => {
       .update(reviewItemsTable)
       .set({ status: "accepted" })
       .where(eq(reviewItemsTable.id, item.id));
-    if (video && video.status === "flagged") {
+    if (video.status === "flagged") {
       const stillPending = await hasPendingReviewItems(video.id);
       if (!stillPending) {
         await db
@@ -104,7 +115,7 @@ router.patch("/review-items/:id", async (req, res): Promise<void> => {
   }
 
   // Discard.
-  if (video?.videodbVideoId) {
+  if (video.videodbVideoId) {
     if (!isVideoDBConfigured()) {
       res.status(503).json({
         error:
@@ -126,17 +137,13 @@ router.patch("/review-items/:id", async (req, res): Promise<void> => {
       }
     }
   }
-  if (video) {
-    await db.transaction(async (tx) => {
-      await tx.delete(momentsTable).where(eq(momentsTable.videoId, video.id));
-      await tx
-        .delete(reviewItemsTable)
-        .where(eq(reviewItemsTable.videoId, video.id));
-      await tx.delete(videosTable).where(eq(videosTable.id, video.id));
-    });
-  } else {
-    await db.delete(reviewItemsTable).where(eq(reviewItemsTable.id, item.id));
-  }
+  await db.transaction(async (tx) => {
+    await tx.delete(momentsTable).where(eq(momentsTable.videoId, video.id));
+    await tx
+      .delete(reviewItemsTable)
+      .where(eq(reviewItemsTable.videoId, video.id));
+    await tx.delete(videosTable).where(eq(videosTable.id, video.id));
+  });
   res.json(ResolveReviewItemResponse.parse(responsePayload));
 });
 

@@ -3,13 +3,11 @@ import path from "node:path";
 import { unlink } from "node:fs/promises";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, videosTable, momentsTable, reviewItemsTable } from "@workspace/db";
 import {
   ListVideosQueryParams,
   ListVideosResponse,
-  CreateVideoBody,
-  CreateVideoResponse,
   GetVideoParams,
   GetVideoResponse,
   UpdateVideoParams,
@@ -32,6 +30,7 @@ import {
   runPrivacyScan,
   isScanInProgress,
 } from "../lib/ingestion";
+import { currentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -77,12 +76,17 @@ function deriveTitleFromUrl(url: string): string {
 }
 
 router.get("/videos", async (req, res): Promise<void> => {
+  const uid = currentUserId(req);
   const query = ListVideosQueryParams.safeParse(req.query);
   const status = query.success ? query.data.status : undefined;
-  const base = db.select().from(videosTable);
-  const rows = status
-    ? await base.where(eq(videosTable.status, status)).orderBy(videosTable.uploadedAt)
-    : await base.orderBy(videosTable.uploadedAt);
+  const where = status
+    ? and(eq(videosTable.userId, uid), eq(videosTable.status, status))
+    : eq(videosTable.userId, uid);
+  const rows = await db
+    .select()
+    .from(videosTable)
+    .where(where)
+    .orderBy(videosTable.uploadedAt);
   res.json(ListVideosResponse.parse(rows.reverse().map(toApiVideo)));
 });
 
@@ -159,6 +163,7 @@ router.post(
       const inserted = await db
         .insert(videosTable)
         .values({
+          userId: currentUserId(req),
           title,
           thumbnailUrl: "",
           videoUrl: null,
@@ -216,7 +221,12 @@ router.post("/videos/:id/privacy-scan", async (req, res): Promise<void> => {
   const [video] = await db
     .select()
     .from(videosTable)
-    .where(eq(videosTable.id, params.data.id));
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
   if (!video) {
     res.status(404).json({ error: "Video not found" });
     return;
@@ -240,31 +250,6 @@ router.post("/videos/:id/privacy-scan", async (req, res): Promise<void> => {
   res.status(202).json(PrivacyScanVideoResponse.parse(toApiVideo(video)));
 });
 
-router.post("/videos", async (req, res): Promise<void> => {
-  const parsed = CreateVideoBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const d = parsed.data;
-  const [video] = await db
-    .insert(videosTable)
-    .values({
-      title: d.title,
-      thumbnailUrl: d.thumbnailUrl ?? "",
-      videoUrl: d.videoUrl ?? null,
-      durationSeconds: d.durationSeconds ?? 0,
-      recordedAt: d.recordedAt ?? null,
-      location: d.location ?? null,
-      source: d.source ?? "gallery",
-      tags: d.tags ?? [],
-      people: d.people ?? [],
-      status: "indexed",
-    })
-    .returning();
-  res.status(201).json(CreateVideoResponse.parse(toApiVideo(video!)));
-});
-
 router.get("/videos/:id", async (req, res): Promise<void> => {
   const params = GetVideoParams.safeParse(req.params);
   if (!params.success) {
@@ -274,7 +259,12 @@ router.get("/videos/:id", async (req, res): Promise<void> => {
   const [video] = await db
     .select()
     .from(videosTable)
-    .where(eq(videosTable.id, params.data.id));
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
   if (!video) {
     res.status(404).json({ error: "Video not found" });
     return;
@@ -302,7 +292,12 @@ router.patch("/videos/:id", async (req, res): Promise<void> => {
   const [video] = await db
     .update(videosTable)
     .set(parsed.data)
-    .where(eq(videosTable.id, params.data.id))
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    )
     .returning();
   if (!video) {
     res.status(404).json({ error: "Video not found" });
@@ -320,7 +315,12 @@ router.delete("/videos/:id", async (req, res): Promise<void> => {
   const [video] = await db
     .select()
     .from(videosTable)
-    .where(eq(videosTable.id, params.data.id));
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
   if (!video) {
     res.status(404).json({ error: "Video not found" });
     return;

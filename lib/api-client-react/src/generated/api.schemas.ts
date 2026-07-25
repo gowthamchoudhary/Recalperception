@@ -61,26 +61,27 @@ export type VideoDetail = Video & ({
   sceneCount?: number | null;
 });
 
-export type VideoInputSource = typeof VideoInputSource[keyof typeof VideoInputSource];
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  createdAt: string;
+}
 
-
-export const VideoInputSource = {
-  gallery: 'gallery',
-  google_photos: 'google_photos',
-  youtube: 'youtube',
-} as const;
-
-export interface VideoInput {
+export interface SignupInput {
+  /** @minLength 3 */
+  email: string;
+  /** @minLength 8 */
+  password: string;
   /** @minLength 1 */
-  title: string;
-  thumbnailUrl?: string;
-  videoUrl?: string;
-  durationSeconds?: number;
-  recordedAt?: string;
-  location?: string;
-  source?: VideoInputSource;
-  tags?: string[];
-  people?: string[];
+  name: string;
+}
+
+export interface LoginInput {
+  /** @minLength 1 */
+  email: string;
+  /** @minLength 1 */
+  password: string;
 }
 
 export type VideoUploadInputSource = typeof VideoUploadInputSource[keyof typeof VideoUploadInputSource];

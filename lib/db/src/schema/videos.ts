@@ -7,9 +7,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const videosTable = pgTable("videos", {
   id: serial("id").primaryKey(),
+  // Nullable only for the one-time pre-auth adoption flow; every new upload
+  // sets it from the session.
+  userId: integer("user_id").references(() => usersTable.id),
   title: text("title").notNull(),
   thumbnailUrl: text("thumbnail_url").notNull().default(""),
   videoUrl: text("video_url"),

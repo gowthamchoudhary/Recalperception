@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
 import { db, videosTable, momentsTable } from "@workspace/db";
 import {
   SearchMemoriesQueryParams,
@@ -7,6 +8,7 @@ import {
 import { SearchResult, SearchTypeValues, IndexTypeValues } from "videodb";
 import { logger } from "../lib/logger";
 import { isVideoDBConfigured, getVideoDBCollection } from "../lib/videodb";
+import { currentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -35,10 +37,19 @@ router.get("/search", async (req, res): Promise<void> => {
   const q = rawQuery.toLowerCase();
   const terms = q.split(/\s+/).filter((t) => t.length > 2);
 
-  const [moments, videos] = await Promise.all([
-    db.select().from(momentsTable),
-    db.select().from(videosTable),
+  // Scoped to the logged-in user's library; the maps below make both the
+  // keyword branch and the VideoDB shot mapping drop anything they don't own.
+  const uid = currentUserId(req);
+  const [momentRows, videos] = await Promise.all([
+    // Scoped at the SQL layer: only moments belonging to the user's videos.
+    db
+      .select({ moment: momentsTable })
+      .from(momentsTable)
+      .innerJoin(videosTable, eq(momentsTable.videoId, videosTable.id))
+      .where(eq(videosTable.userId, uid)),
+    db.select().from(videosTable).where(eq(videosTable.userId, uid)),
   ]);
+  const moments = momentRows.map((r) => r.moment);
   const videoById = new Map(videos.map((v) => [v.id, v]));
   const videoByVdbId = new Map(
     videos
@@ -89,9 +100,15 @@ router.get("/search", async (req, res): Promise<void> => {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error({ err, query: rawQuery }, "VideoDB search failed");
-      res.status(502).json({ error: `VideoDB search failed: ${message}` });
-      return;
+      // The VideoDB SDK raises instead of returning an empty result set —
+      // zero matches is a normal outcome, not an upstream failure.
+      if (/no results found/i.test(message)) {
+        videodbResults = [];
+      } else {
+        logger.error({ err, query: rawQuery }, "VideoDB search failed");
+        res.status(502).json({ error: `VideoDB search failed: ${message}` });
+        return;
+      }
     }
   }
 

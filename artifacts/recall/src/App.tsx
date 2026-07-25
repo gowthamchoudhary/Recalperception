@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Route, Switch, Router as WouterRouter, Link } from 'wouter';
+import { Route, Switch, Router as WouterRouter, Link, Redirect } from 'wouter';
+import type { ReactNode } from 'react';
 import Home from './pages/home';
 import Login from './pages/login';
 import Dashboard from './pages/dashboard';
 import Search from './pages/search';
+import { useCurrentUser } from './lib/auth';
 
 const queryClient = new QueryClient();
 
@@ -19,13 +21,31 @@ function NotFound() {
   );
 }
 
+/**
+ * Frontend companion to the server-side session check: unauthenticated
+ * visitors are bounced to /login. (The API enforces auth independently —
+ * this guard is purely for UX.)
+ */
+function Protected({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useCurrentUser();
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
+        <div className="w-10 h-10 border-4 border-secondary border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Redirect to="/login" />;
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/search" component={Search} />
+      <Route path="/dashboard">{() => <Protected><Dashboard /></Protected>}</Route>
+      <Route path="/search">{() => <Protected><Search /></Protected>}</Route>
       <Route component={NotFound} />
     </Switch>
   );
