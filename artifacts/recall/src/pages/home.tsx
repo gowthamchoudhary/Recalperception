@@ -15,6 +15,17 @@ import {
   type Video,
 } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/lib/auth";
+import { Users, Eye } from "lucide-react";
+
+// Demo assets shown on the landing page before the user uploads anything.
+const DEMO = {
+  audio: "/audio/landing-vlog.mp3",
+  videos: [
+    { src: "/videos/landing-stuck-in-traffic.mp4", title: "Stuck in traffic", tag: "vlog" },
+    { src: "/videos/landing-friends-enjoying.mp4", title: "Friends enjoying", tag: "friends" },
+    { src: "/videos/landing-juggling-football.mp4", title: "Juggling football", tag: "sport" },
+  ],
+} as const;
 
 /** Muted, looping HLS preview used in the floating hero cards. */
 function HlsLoop({ src, startAt = 0, className, muted = true, onElement }: { src: string; startAt?: number; className?: string; muted?: boolean; onElement?: (el: HTMLVideoElement) => void }) {
@@ -155,62 +166,37 @@ function Annotation({
   );
 }
 
-/** Floating video card that plays a real user video. */
-function FloatingVideoCard({ video, label }: { video: Video; label?: string }) {
-  return (
-    <div
-      className="hidden lg:block absolute bottom-[100px] left-6 xl:left-10 z-20 w-[150px] xl:w-[190px] float-anim d2"
-      style={{ ["--rot" as string]: "-6deg", transform: "rotate(-6deg)" }}
-    >
-      <StitchedCard
-        className="bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)] overflow-hidden"
-        inset={5}
-        radius={9}
-      >
-        <div className="aspect-[4/3] rounded-[7px] overflow-hidden bg-[#14140f] relative">
-          {video.videoUrl ? (
-            <HlsLoop src={video.videoUrl} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white/30">
-              <Play className="w-8 h-8" />
-            </div>
-          )}
-          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold">
-            {mmss(video.durationSeconds)}
-          </div>
-        </div>
-        <p className="text-[10px] font-bold text-[#14140f] mt-1.5 truncate px-0.5">{video.title}</p>
-        <p className="text-[9px] text-[#55554d] px-0.5">{label ?? video.source}</p>
-      </StitchedCard>
-    </div>
-  );
-}
-
-/** Floating audio card that can play the audio from a video. */
-function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcriptExcerpt?: string | null }) {
+/** Floating audio card that plays the demo vlog MP3. */
+function FloatingAudioCard({ audioSrc, transcriptExcerpt }: { audioSrc: string; transcriptExcerpt?: string | null }) {
   const [playing, setPlaying] = useState(false);
-  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const toggle = () => {
-    if (!videoEl) return;
+    const audio = audioRef.current;
+    if (!audio) return;
     if (playing) {
-      videoEl.muted = true;
-      videoEl.pause();
+      audio.pause();
       setPlaying(false);
     } else {
-      videoEl.muted = false;
-      void videoEl.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+      void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     }
   };
 
   useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onEnded = () => setPlaying(false);
+    const onPause = () => setPlaying(false);
+    const onPlay = () => setPlaying(true);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("play", onPlay);
     return () => {
-      if (videoEl) {
-        videoEl.pause();
-        videoEl.muted = true;
-      }
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("play", onPlay);
     };
-  }, [videoEl]);
+  }, []);
 
   return (
     <div
@@ -222,7 +208,7 @@ function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcr
         style={{ background: "#14140f", boxShadow: "0 22px 44px -14px rgba(0,0,0,0.45)" }}
       >
         <div className="flex items-center justify-between mb-2">
-          <p className="font-mono text-[9.5px] text-[#8f8f86]">PODCAST AUDIO</p>
+          <p className="font-mono text-[9.5px] text-[#8f8f86]">VLOG AUDIO</p>
           <button
             onClick={toggle}
             className="w-6 h-6 rounded-full bg-[#1c8a3e] flex items-center justify-center hover:bg-[#168033] transition-colors"
@@ -236,9 +222,7 @@ function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcr
           {transcriptExcerpt ? `"${transcriptExcerpt.slice(0, 45)}${transcriptExcerpt.length > 45 ? "…" : ""}"` : '"…and that\'s why the fridge was on the roof."'}
         </p>
       </div>
-      {video.videoUrl && (
-        <HlsLoop src={video.videoUrl} muted={!playing} className="hidden" onElement={setVideoEl} />
-      )}
+      <audio ref={audioRef} src={audioSrc} loop className="hidden" />
     </div>
   );
 }
@@ -301,12 +285,12 @@ export default function Home() {
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[7px] relative overflow-hidden" style={{ background: "linear-gradient(160deg, #1e3a5f, #0f1f33)" }}>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/90">
-                    <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-1.5">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
-                    </div>
-                    <span className="text-[8px] font-bold uppercase tracking-wide">Lecture</span>
+                <div className="w-full h-full rounded-[7px] relative overflow-hidden bg-[#14140f]">
+                  <video src={DEMO.videos[0].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <p className="text-[8px] font-bold text-white uppercase tracking-wide">{DEMO.videos[0].tag}</p>
+                    <p className="text-[9px] text-white/80 truncate">{DEMO.videos[0].title}</p>
                   </div>
                 </div>
               </StitchedCard>
@@ -318,12 +302,12 @@ export default function Home() {
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[7px] relative overflow-hidden" style={{ background: "linear-gradient(160deg, #f59e0b, #b45309)" }}>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/95">
-                    <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center mb-1">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M8 21v-2a4 4 0 0 1 8 0v2"/></svg>
-                    </div>
-                    <span className="text-[8px] font-bold uppercase tracking-wide">Kids</span>
+                <div className="w-full h-full rounded-[7px] relative overflow-hidden bg-[#14140f]">
+                  <video src={DEMO.videos[1].src} muted loop playsInline autoPlay className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <p className="text-[8px] font-bold text-white uppercase tracking-wide">{DEMO.videos[1].tag}</p>
+                    <p className="text-[9px] text-white/80 truncate">{DEMO.videos[1].title}</p>
                   </div>
                 </div>
               </StitchedCard>
@@ -392,13 +376,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Real-user floating video + audio cards — shown when logged in, desktop only */}
-        {teacherVideo && (
-          <>
-            <FloatingVideoCard video={teacherVideo} label="Teacher · lecture" />
-            <FloatingAudioCard video={podcastVideo ?? teacherVideo} transcriptExcerpt={podcastVideo?.transcriptExcerpt ?? teacherVideo?.transcriptExcerpt} />
-          </>
-        )}
+        {/* Floating audio card — demo vlog MP3, desktop only */}
+        <FloatingAudioCard audioSrc={DEMO.audio} transcriptExcerpt={podcastVideo?.transcriptExcerpt} />
 
         {/* Hero text + CTA */}
         <div className="relative z-30 text-center max-w-[820px]">
@@ -471,8 +450,14 @@ export default function Home() {
                 >
                   Library {authed && stats?.totalVideos !== undefined ? stats.totalVideos : ""}
                 </span>
-                <span className="text-[11.5px] font-bold px-3 py-1.5 rounded-full text-[#9a9a90]">People {authed && stats?.totalPeople !== undefined ? stats.totalPeople : ""}</span>
-                <span className="text-[11.5px] font-bold px-3 py-1.5 rounded-full text-[#9a9a90]">Review {authed && stats?.pendingReviewCount ? stats.pendingReviewCount : ""}</span>
+                <span className="hidden sm:inline-flex text-[11.5px] font-bold px-3 py-1.5 rounded-full text-[#9a9a90]">People {authed && stats?.totalPeople !== undefined ? stats.totalPeople : ""}</span>
+                <span className="sm:hidden w-8 h-8 rounded-full flex items-center justify-center text-[#9a9a90]" title="People">
+                  <Users className="w-4 h-4" />
+                </span>
+                <span className="hidden sm:inline-flex text-[11.5px] font-bold px-3 py-1.5 rounded-full text-[#9a9a90]">Review {authed && stats?.pendingReviewCount ? stats.pendingReviewCount : ""}</span>
+                <span className="sm:hidden w-8 h-8 rounded-full flex items-center justify-center text-[#9a9a90]" title="Review">
+                  <Eye className="w-4 h-4" />
+                </span>
               </div>
             </div>
 
@@ -492,15 +477,8 @@ export default function Home() {
               </div>
             </Link>
 
-            {/* Preview grid */}
-            {!authed ? (
-              <div className="py-6 flex flex-col items-center text-center">
-                <p className="text-[#8f8f86] font-medium mb-4 max-w-md text-sm">Log in to see your library here — every upload is transcribed, indexed, and privacy-scanned automatically.</p>
-                <GlossyButton variant="light" href="/login" className="px-5 py-2.5 text-[13.5px]">
-                  Sign in to your archive
-                </GlossyButton>
-              </div>
-            ) : isLoadingVideos ? (
+            {/* Preview grid — demo videos always first, then user videos */}
+            {isLoadingVideos && authed ? (
               <div className="flex gap-3 overflow-hidden">
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="w-[140px] sm:w-[160px] md:flex-1 md:min-w-0 shrink-0 animate-pulse">
@@ -510,16 +488,19 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-            ) : (videos?.length ?? 0) === 0 ? (
-              <div className="py-6 flex flex-col items-center text-center">
-                <p className="text-[#8f8f86] font-medium mb-4 max-w-md text-sm">Your library is empty. Upload your first video and it will show up here, fully searchable.</p>
-                <GlossyButton variant="light" href="/dashboard" className="px-5 py-2.5 text-[13.5px]">
-                  Upload a video
-                </GlossyButton>
-              </div>
             ) : (
               <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {videos!.slice(0, 4).map((video) => (
+                {DEMO.videos.map((demo, i) => (
+                  <Link key={`demo-${i}`} href={authed ? "/dashboard" : "/login"} className="w-[140px] sm:w-[160px] md:flex-1 md:min-w-0 shrink-0 group snap-start block">
+                    <div className="aspect-[4/3] rounded-[10px] overflow-hidden border border-[#2a2a24] bg-gradient-to-br from-[#2a2a24] to-[#0c0c08] relative">
+                      <video src={demo.src} muted loop playsInline autoPlay className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" />
+                      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[8px] font-bold uppercase">Demo</div>
+                    </div>
+                    <p className="text-[11px] font-bold text-[#eee] mt-1.5 truncate group-hover:text-[#1c8a3e] transition-colors">{demo.title}</p>
+                    <p className="text-[9.5px] text-[#8f8f86] truncate">{demo.tag} · demo</p>
+                  </Link>
+                ))}
+                {authed && (videos ?? []).slice(0, 4).map((video) => (
                   <Link key={video.id} href="/dashboard" className="w-[140px] sm:w-[160px] md:flex-1 md:min-w-0 shrink-0 group snap-start block">
                     <div className="aspect-[4/3] rounded-[10px] overflow-hidden border border-[#2a2a24] bg-gradient-to-br from-[#2a2a24] to-[#0c0c08]">
                       {video.thumbnailUrl ? (
