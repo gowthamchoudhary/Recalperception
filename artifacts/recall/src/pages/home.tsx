@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import Hls from "hls.js";
 import { motion, useInView } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/layout/Navbar";
 import { GlossyButton } from "@/components/ui/glossy-button";
 import { StitchedCard } from "@/components/ui/stitched-card";
@@ -9,12 +10,9 @@ import { Play, Search, CheckCircle, ArrowRight, Volume2, VolumeX, FileVideo, Mic
 import {
   useGetStats,
   useListVideos,
-  useGetVideo,
   getGetStatsQueryKey,
   getListVideosQueryKey,
-  getGetVideoQueryKey,
   type Video,
-  type VideoDetail,
 } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/lib/auth";
 
@@ -158,10 +156,10 @@ function Annotation({
 }
 
 /** Floating video card that plays a real user video. */
-function FloatingVideoCard({ video }: { video: Video }) {
+function FloatingVideoCard({ video, label }: { video: Video; label?: string }) {
   return (
     <div
-      className="absolute bottom-[100px] left-6 xl:left-10 z-20 w-[150px] xl:w-[190px] float-anim d2"
+      className="hidden lg:block absolute bottom-[100px] left-6 xl:left-10 z-20 w-[150px] xl:w-[190px] float-anim d2"
       style={{ ["--rot" as string]: "-6deg", transform: "rotate(-6deg)" }}
     >
       <StitchedCard
@@ -182,7 +180,7 @@ function FloatingVideoCard({ video }: { video: Video }) {
           </div>
         </div>
         <p className="text-[10px] font-bold text-[#14140f] mt-1.5 truncate px-0.5">{video.title}</p>
-        <p className="text-[9px] text-[#55554d] px-0.5">{video.source}</p>
+        <p className="text-[9px] text-[#55554d] px-0.5">{label ?? video.source}</p>
       </StitchedCard>
     </div>
   );
@@ -216,7 +214,7 @@ function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcr
 
   return (
     <div
-      className="absolute top-[260px] right-6 xl:right-10 z-20 w-[180px] xl:w-[220px] float-anim d1"
+      className="hidden lg:block absolute top-[260px] right-6 xl:right-10 z-20 w-[180px] xl:w-[220px] float-anim d1"
       style={{ ["--rot" as string]: "4deg", transform: "rotate(4deg)" }}
     >
       <div
@@ -224,7 +222,7 @@ function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcr
         style={{ background: "#14140f", boxShadow: "0 22px 44px -14px rgba(0,0,0,0.45)" }}
       >
         <div className="flex items-center justify-between mb-2">
-          <p className="font-mono text-[9.5px] text-[#8f8f86]">AUDIO INDEX</p>
+          <p className="font-mono text-[9.5px] text-[#8f8f86]">PODCAST AUDIO</p>
           <button
             onClick={toggle}
             className="w-6 h-6 rounded-full bg-[#1c8a3e] flex items-center justify-center hover:bg-[#168033] transition-colors"
@@ -245,6 +243,14 @@ function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcr
   );
 }
 
+type HeroVideo = Video & { transcriptExcerpt?: string | null };
+
+async function fetchHeroVideos(): Promise<{ teacher: HeroVideo | null; podcast: HeroVideo | null }> {
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/videos/hero`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to load hero videos");
+  return (await res.json()) as { teacher: HeroVideo | null; podcast: HeroVideo | null };
+}
+
 export default function Home() {
   const { user } = useCurrentUser();
   const authed = !!user;
@@ -255,15 +261,14 @@ export default function Home() {
   const { data: videos, isLoading: isLoadingVideos } = useListVideos(undefined, {
     query: { enabled: authed, queryKey: getListVideosQueryKey(undefined) },
   });
-
-  const playable = useMemo(
-    () => (videos ?? []).filter((v) => v.videoUrl && v.status === "indexed"),
-    [videos],
-  );
-  const featuredVideo = playable[0];
-  const { data: featuredDetail } = useGetVideo(featuredVideo?.id ?? 0, {
-    query: { enabled: !!featuredVideo, queryKey: getGetVideoQueryKey(featuredVideo?.id ?? 0) },
+  const { data: hero } = useQuery({
+    queryKey: ["hero-videos"],
+    queryFn: fetchHeroVideos,
+    enabled: authed,
   });
+
+  const teacherVideo = hero?.teacher;
+  const podcastVideo = hero?.podcast;
 
   return (
     <div className="min-h-screen flex flex-col relative bg-[#f4f4f2]">
@@ -350,8 +355,8 @@ export default function Home() {
             <div className="rounded-[15px] p-4 text-white" style={{ background: "#14140f", boxShadow: "0 22px 44px -14px rgba(0,0,0,0.45)" }}>
               <p className="font-mono text-[9.5px] text-[#8f8f86] mb-1.5">GOLD MOMENT</p>
               <p className="text-sm font-bold leading-snug mb-2">
-                {featuredDetail?.transcriptExcerpt
-                  ? `"${featuredDetail.transcriptExcerpt.slice(0, 60)}${featuredDetail.transcriptExcerpt.length > 60 ? "…" : ""}"`
+                {podcastVideo?.transcriptExcerpt
+                  ? `"${podcastVideo.transcriptExcerpt.slice(0, 60)}${podcastVideo.transcriptExcerpt.length > 60 ? "…" : ""}"`
                   : '"Wait, did I just say that out loud? ... yeah, we\'re keeping it in."'}
               </p>
               <div className="flex gap-[2px] items-end h-3.5 mt-2">
@@ -380,18 +385,18 @@ export default function Home() {
                 <Mic2 className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold truncate leading-tight">{featuredVideo?.title ?? "The Mid-Video Rant"}</p>
-                <p className="text-[9.5px] text-[#55554d] font-medium">{featuredVideo ? `Indexed · ${mmss(featuredVideo.durationSeconds)}` : "Podcast · 47 min"}</p>
+                <p className="text-[11px] font-bold truncate leading-tight">{podcastVideo?.title ?? "The Mid-Video Rant"}</p>
+                <p className="text-[9.5px] text-[#55554d] font-medium">{podcastVideo ? `Indexed · ${mmss(podcastVideo.durationSeconds)}` : "Podcast · 47 min"}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Real-user floating video + audio cards — shown when logged in */}
-        {featuredVideo && (
+        {/* Real-user floating video + audio cards — shown when logged in, desktop only */}
+        {teacherVideo && (
           <>
-            <FloatingVideoCard video={featuredVideo} />
-            <FloatingAudioCard video={featuredVideo} transcriptExcerpt={featuredDetail?.transcriptExcerpt} />
+            <FloatingVideoCard video={teacherVideo} label="Teacher · lecture" />
+            <FloatingAudioCard video={podcastVideo ?? teacherVideo} transcriptExcerpt={podcastVideo?.transcriptExcerpt ?? teacherVideo?.transcriptExcerpt} />
           </>
         )}
 

@@ -76,6 +76,30 @@ function deriveTitleFromUrl(url: string): string {
   }
 }
 
+const NON_ENGLISH_RE = /[\u0B80-\u0BFF\u0900-\u097F\u4E00-\u9FFF\u0600-\u06FF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/;
+
+function isEnglishOnly(text?: string | null) {
+  return !text || !NON_ENGLISH_RE.test(text);
+}
+
+function scoreTeacher(row: VideoRow) {
+  const t = `${row.title} ${row.transcriptExcerpt ?? ""} ${row.tags.join(" ")}`.toLowerCase();
+  const terms = [
+    "teacher", "lecture", "lesson", "class", "explain", "tutorial", "show you", "today i",
+    "how to", "what is", "learn", "concept", "understand", "whiteboard", "blackboard", "topic", "course",
+  ];
+  return terms.reduce((acc, term) => acc + (t.includes(term) ? 1 : 0), 0);
+}
+
+function scorePodcast(row: VideoRow) {
+  const t = `${row.title} ${row.transcriptExcerpt ?? ""} ${row.tags.join(" ")}`.toLowerCase();
+  const terms = [
+    "podcast", "episode", "debate", "interview", "discussion", "news", "conversation", "talk show",
+    "rant", "opinion", "hot take", "guest", "host", "panel", "roundtable",
+  ];
+  return terms.reduce((acc, term) => acc + (t.includes(term) ? 1 : 0), 0);
+}
+
 router.get("/videos", async (req, res): Promise<void> => {
   const uid = currentUserId(req);
   const query = ListVideosQueryParams.safeParse(req.query);
@@ -89,6 +113,31 @@ router.get("/videos", async (req, res): Promise<void> => {
     .where(where)
     .orderBy(videosTable.uploadedAt);
   res.json(ListVideosResponse.parse(rows.reverse().map(toApiVideo)));
+});
+
+/**
+ * Hero video picker: finds the best English-only "teacher" and "podcast" clips
+ * for the landing page so we never surface non-English or off-topic videos.
+ */
+router.get("/videos/hero", async (req, res): Promise<void> => {
+  const uid = currentUserId(req);
+  const rows = await db
+    .select()
+    .from(videosTable)
+    .where(and(eq(videosTable.userId, uid), eq(videosTable.status, "indexed")));
+
+  const english = rows.filter((r) => r.videoUrl && isEnglishOnly(r.transcriptExcerpt) && isEnglishOnly(r.title));
+  const sortedTeacher = english.slice().sort((a, b) => scoreTeacher(b) - scoreTeacher(a));
+  const teacher = sortedTeacher[0];
+  const sortedPodcast = english
+    .filter((r) => r.id !== teacher?.id)
+    .sort((a, b) => scorePodcast(b) - scorePodcast(a));
+  const podcast = sortedPodcast[0] ?? english[0];
+
+  res.json({
+    teacher: teacher ? { ...toApiVideo(teacher), transcriptExcerpt: teacher.transcriptExcerpt } : null,
+    podcast: podcast ? { ...toApiVideo(podcast), transcriptExcerpt: podcast.transcriptExcerpt } : null,
+  });
 });
 
 /**
