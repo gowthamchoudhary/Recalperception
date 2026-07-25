@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, Link } from "wouter";
+import Hls from "hls.js";
 import { Navbar } from "@/components/layout/Navbar";
 import { Search as SearchIcon, Play, ChevronLeft, Calendar, MapPin, Users, X, Quote } from "lucide-react";
 import { useSearchMemories, useGetVideo, getSearchMemoriesQueryKey, getGetVideoQueryKey } from "@workspace/api-client-react";
@@ -148,6 +149,53 @@ export default function Search() {
   )
 }
 
+/**
+ * Real HLS playback for VideoDB streams. Seeks straight to the matched
+ * moment once the stream is ready. Safari plays HLS natively; other
+ * browsers go through hls.js.
+ */
+function VideoPlayer({ src, startAt, poster }: { src: string; startAt: number; poster?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    let hls: Hls | null = null;
+    const seekToMatch = () => {
+      video.currentTime = startAt;
+      void video.play().catch(() => {
+        // Autoplay blocked — the user can press play; we stay seeked.
+      });
+    };
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+      video.addEventListener("loadedmetadata", seekToMatch, { once: true });
+    } else if (Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, seekToMatch);
+    } else {
+      video.src = src;
+      video.addEventListener("loadedmetadata", seekToMatch, { once: true });
+    }
+    return () => {
+      video.removeEventListener("loadedmetadata", seekToMatch);
+      if (hls) hls.destroy();
+    };
+  }, [src, startAt]);
+
+  return (
+    <video
+      ref={videoRef}
+      controls
+      playsInline
+      poster={poster}
+      className="absolute inset-0 w-full h-full"
+    />
+  );
+}
+
 function PlayerOverlay({ result, onClose }: { result: any, onClose: () => void }) {
   const { data: videoDetail } = useGetVideo(result.videoId, { query: { enabled: !!result.videoId, queryKey: getGetVideoQueryKey(result.videoId) } });
 
@@ -167,36 +215,45 @@ function PlayerOverlay({ result, onClose }: { result: any, onClose: () => void }
         </div>
         
         <div className="flex-1 overflow-y-auto">
-          {/* Player Facade */}
+          {/* Player: real HLS stream when available, facade for seeded demos */}
           <div className="w-full bg-black aspect-video relative group">
-             {/* Swappable slot for real video playback */}
-             <div className="absolute inset-0">
-               <img src={result.thumbnailUrl || "/images/trekking.jpg"} className="w-full h-full object-cover opacity-80" alt="Video" />
-               {/* <video src={result.videoUrl} ... /> */}
-             </div>
-             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-               <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 hover:scale-105 transition-all">
-                 <Play className="w-8 h-8 text-white fill-white ml-1" />
-               </div>
-             </div>
-             
-             {/* Player Controls overlay */}
-             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent pt-12 pb-6 px-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="flex items-center justify-between text-white font-mono text-xs font-bold mb-3">
-                  <span>{Math.floor(result.timestampSeconds / 60)}:{(result.timestampSeconds % 60).toString().padStart(2, '0')}</span>
-                  <span>{Math.floor(result.durationSeconds / 60)}:{(result.durationSeconds % 60).toString().padStart(2, '0')}</span>
-                </div>
-                
-                {/* Timeline Scrubber */}
-                <div className="w-full h-2 bg-white/30 rounded-full relative cursor-pointer group/scrubber">
-                  {/* Progress fill */}
-                  <div className="absolute top-0 left-0 h-full bg-white rounded-l-full" style={{ width: `${matchPercent}%` }} />
-                  
-                  {/* Highlighted match segment */}
-                  <div className="absolute top-1/2 -translate-y-1/2 h-4 w-1 bg-accent rounded-full shadow-[0_0_8px_rgba(28,138,62,1)]" style={{ left: `${matchPercent}%` }} />
-                  <div className="absolute top-1/2 -translate-y-1/2 h-1 bg-accent/40 rounded-full" style={{ left: `${Math.max(0, matchPercent - 2)}%`, width: '4%' }} />
-                </div>
-             </div>
+             {result.videoUrl ? (
+               <VideoPlayer
+                 src={result.videoUrl}
+                 startAt={result.timestampSeconds}
+                 poster={result.thumbnailUrl || undefined}
+               />
+             ) : (
+               <>
+                 {/* Swappable slot for real video playback */}
+                 <div className="absolute inset-0">
+                   <img src={result.thumbnailUrl || "/images/trekking.jpg"} className="w-full h-full object-cover opacity-80" alt="Video" />
+                 </div>
+                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                   <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 hover:scale-105 transition-all">
+                     <Play className="w-8 h-8 text-white fill-white ml-1" />
+                   </div>
+                 </div>
+
+                 {/* Player Controls overlay */}
+                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent pt-12 pb-6 px-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="flex items-center justify-between text-white font-mono text-xs font-bold mb-3">
+                      <span>{Math.floor(result.timestampSeconds / 60)}:{(result.timestampSeconds % 60).toString().padStart(2, '0')}</span>
+                      <span>{Math.floor(result.durationSeconds / 60)}:{(result.durationSeconds % 60).toString().padStart(2, '0')}</span>
+                    </div>
+
+                    {/* Timeline Scrubber */}
+                    <div className="w-full h-2 bg-white/30 rounded-full relative cursor-pointer group/scrubber">
+                      {/* Progress fill */}
+                      <div className="absolute top-0 left-0 h-full bg-white rounded-l-full" style={{ width: `${matchPercent}%` }} />
+
+                      {/* Highlighted match segment */}
+                      <div className="absolute top-1/2 -translate-y-1/2 h-4 w-1 bg-accent rounded-full shadow-[0_0_8px_rgba(28,138,62,1)]" style={{ left: `${matchPercent}%` }} />
+                      <div className="absolute top-1/2 -translate-y-1/2 h-1 bg-accent/40 rounded-full" style={{ left: `${Math.max(0, matchPercent - 2)}%`, width: '4%' }} />
+                    </div>
+                 </div>
+               </>
+             )}
           </div>
           
           {/* Metadata Section */}
