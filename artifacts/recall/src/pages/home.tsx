@@ -235,7 +235,7 @@ function FloatingAudioCard({ video, transcriptExcerpt }: { video: Video; transcr
         </div>
         <AudioWaveform isPlaying={playing} />
         <p className="text-[10px] text-[#9a9a90] mt-2 font-medium truncate">
-          {transcriptExcerpt ? `"${transcriptExcerpt.slice(0, 45)}${transcriptExcerpt.length > 45 ? "…" : ""}"` : "Audio transcript indexed"}
+          {transcriptExcerpt ? `"${transcriptExcerpt.slice(0, 45)}${transcriptExcerpt.length > 45 ? "…" : ""}"` : '"…and that\'s why the fridge was on the roof."'}
         </p>
       </div>
       {video.videoUrl && (
@@ -289,28 +289,44 @@ export default function Home() {
         <div className="hidden xl:block pointer-events-none">
           {/* Left photo stack */}
           <div className="absolute top-[150px] left-9 z-10">
+            {/* Teacher lecture card */}
             <div className="float-anim" style={{ ["--rot" as string]: "-8deg", transform: "rotate(-8deg)" }}>
               <StitchedCard
                 className="w-[118px] h-[150px] bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[7px]" style={{ background: "linear-gradient(160deg, #173f22, #0c1f12)" }} />
+                <div className="w-full h-full rounded-[7px] relative overflow-hidden" style={{ background: "linear-gradient(160deg, #1e3a5f, #0f1f33)" }}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/90">
+                    <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center mb-1.5">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
+                    </div>
+                    <span className="text-[8px] font-bold uppercase tracking-wide">Lecture</span>
+                  </div>
+                </div>
               </StitchedCard>
             </div>
+            {/* Kid playing card */}
             <div className="float-anim d1 absolute top-[120px] left-16 z-20" style={{ ["--rot" as string]: "7deg", transform: "rotate(7deg)" }}>
               <StitchedCard
                 className="w-[100px] h-[126px] bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
                 inset={5}
                 radius={9}
               >
-                <div className="w-full h-full rounded-[7px]" style={{ background: "linear-gradient(160deg, #2a2a24, #050503)" }} />
+                <div className="w-full h-full rounded-[7px] relative overflow-hidden" style={{ background: "linear-gradient(160deg, #f59e0b, #b45309)" }}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/95">
+                    <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center mb-1">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M8 21v-2a4 4 0 0 1 8 0v2"/></svg>
+                    </div>
+                    <span className="text-[8px] font-bold uppercase tracking-wide">Kids</span>
+                  </div>
+                </div>
               </StitchedCard>
             </div>
           </div>
 
           <Annotation
-            label='Scene extracted · "trekking, mountains"'
+            label='Scene extracted · "teacher, whiteboard, lecture"'
             top={140}
             left={172}
             lineTop={150}
@@ -319,7 +335,7 @@ export default function Home() {
             rotate={18}
           />
           <Annotation
-            label="People detected · 3 faces"
+            label="People detected · 2 kids, 1 adult"
             top={300}
             left={20}
             lineTop={300}
@@ -329,43 +345,43 @@ export default function Home() {
             color="#f59e0b"
           />
 
-          {/* Right moment card */}
+          {/* Right moment card — podcast / gold moment */}
           <div className="absolute top-[130px] right-9 z-10 w-[220px] float-anim d2" style={{ ["--rot" as string]: "2deg", transform: "rotate(2deg)" }}>
             <div className="rounded-[15px] p-4 text-white" style={{ background: "#14140f", boxShadow: "0 22px 44px -14px rgba(0,0,0,0.45)" }}>
-              <p className="font-mono text-[9.5px] text-[#8f8f86] mb-1.5">MOMENT FOUND</p>
+              <p className="font-mono text-[9.5px] text-[#8f8f86] mb-1.5">GOLD MOMENT</p>
               <p className="text-sm font-bold leading-snug mb-2">
                 {featuredDetail?.transcriptExcerpt
                   ? `"${featuredDetail.transcriptExcerpt.slice(0, 60)}${featuredDetail.transcriptExcerpt.length > 60 ? "…" : ""}"`
-                  : '"We finally made it to the top..."'}
+                  : '"Wait, did I just say that out loud? ... yeah, we\'re keeping it in."'}
               </p>
               <div className="flex gap-[2px] items-end h-3.5 mt-2">
                 {[5, 10, 14, 8, 12, 6, 11, 14, 7].map((h, i) => (
-                  <span key={i} className="w-0.5 rounded-sm" style={{ height: `${h}px`, background: "#1c8a3e" }} />
+                  <span key={i} className="w-0.5 rounded-sm" style={{ height: `${h}px`, background: "#a855f7" }} />
                 ))}
               </div>
             </div>
           </div>
 
           <Annotation
-            label="Audio transcript indexed"
+            label="Podcast transcript indexed"
             top={100}
             right={78}
             lineTop={112}
             lineRight={110}
             lineWidth={30}
             rotate={-25}
-            color="#3b82f6"
+            color="#a855f7"
           />
 
           {/* Bottom right clip card */}
           <div className="absolute bottom-16 right-10 z-10 float-anim d1" style={{ ["--rot" as string]: "-3deg", transform: "rotate(-3deg)" }}>
             <div className="w-[170px] bg-white rounded-xl p-2.5 flex gap-2.5 items-center border border-[rgba(20,20,15,0.10)] shadow-[0_16px_32px_-14px_rgba(0,0,0,0.2)]">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #2a2a24, #050503)" }}>
-                <Play className="w-3 h-3 text-white fill-white" />
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #a855f7, #7e22ce)" }}>
+                <Mic2 className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold truncate leading-tight">{featuredVideo?.title ?? "Sarah's 30th"}</p>
-                <p className="text-[9.5px] text-[#55554d] font-medium">{featuredVideo ? `Indexed · ${mmss(featuredVideo.durationSeconds)}` : "Indexed · 3 people"}</p>
+                <p className="text-[11px] font-bold truncate leading-tight">{featuredVideo?.title ?? "The Mid-Video Rant"}</p>
+                <p className="text-[9.5px] text-[#55554d] font-medium">{featuredVideo ? `Indexed · ${mmss(featuredVideo.durationSeconds)}` : "Podcast · 47 min"}</p>
               </div>
             </div>
           </div>
