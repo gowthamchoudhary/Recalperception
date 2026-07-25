@@ -1,0 +1,36 @@
+Redesign the landing page to match this exact spec — I'm attaching a reference HTML file that shows the full target design; replicate its layout, spacing, colors, and interactions precisely in our actual React components.
+
+1. One-screen hero — no scroll needed to see the product
+Restructure the hero so the headline, subhead, CTA buttons, AND the dark app-preview panel all fit within the first viewport (100vh) on a standard desktop screen. Right now the preview panel sits below the fold — pull it up so it's visible immediately, directly under the CTA row, acting as the hero's visual anchor.
+
+2. Nav becomes a floating pill on scroll
+The top nav starts as a full-width transparent bar. On scroll (>40px), animate it into a centered, narrower, rounded-pill container with a light gradient background, subtle border, and soft shadow — smooth transition, not an abrupt snap.
+
+3. Gradient/glass button + input system — apply everywhere
+Every button and input across the whole app (not just this page) should use this layered style instead of flat colors:
+
+Primary dark buttons: vertical gradient fill (
+#414141 → 
+#030303), 1px border (
+#1c1c1c), inset highlight at the top edge, deep soft drop shadow
+On dark backgrounds (e.g. buttons inside the preview panel or dashboard dark surfaces): swap to a light gradient version (
+#ffffff → 
+#e8e8e8) with matching inset highlight and border — buttons should adapt to whichever background they sit on, dark-on-light or light-on-dark, never look flat/mismatched
+Search inputs and pill tags get the same treatment: subtle gradient fill, thin border, soft inset highlight, gentle shadow — should read as tactile/glassy, not flat
+
+4. Stitched-border photo/video thumbnail cards
+Any decorative or thumbnail card showing a video frame should have a dashed inner border (2px dashed, ~28% opacity) inset a few pixels from the card edge, on top of a solid rounded outer card with its own shadow — giving a "stitched frame" look rather than a plain border.
+
+5. Annotation callouts on the hero's floating cards
+Add small labeled pill callouts near the decorative cards, each with a colored dot and a short label describing what was extracted — e.g. "Scene extracted · trekking, mountains," "People detected · 3 faces," "Audio transcript indexed" — connected to their card with a short dashed line. These should be static/decorative on the marketing hero, not live data.
+
+6. Below-the-fold sections — new content, add these
+After the hero, add two new sections:
+
+"How It Works" — 4-step grid: Bring your videos → We index everything → You stay in control → Just ask. Short heading + one sentence each.
+"Why Recall" — 3-card grid on the value props: video is unsearchable by default (unlike text), understands what happened not just what was said, private by design (review-before-searchable).
+
+Match the reference file's exact spacing, type scale, corner radii, and color values (background 
+#f4f4f2, accent green 
+#1c8a3e, ink 
+#14140f) — this should look like one coherent design system, not a bolted-on section.

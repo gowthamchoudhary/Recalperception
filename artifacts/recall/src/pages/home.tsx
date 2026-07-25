@@ -64,13 +64,86 @@ function mmss(totalSeconds: number): string {
   return `${m}:${s}`;
 }
 
-/** Gradient border + fill for the search/dropzone inputs */
-const inputGradientStyle: React.CSSProperties = {
-  background:
-    "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03)) padding-box," +
-    "linear-gradient(180deg,rgba(255,255,255,0.18) 0%,rgba(255,255,255,0.06) 100%) border-box",
-  border: "1px solid transparent",
-};
+const BrandMark = () => (
+  <div
+    className="w-5 h-5 rounded-md flex items-center justify-center"
+    style={{
+      background: "linear-gradient(135deg, #1c8a3e, #0e5024)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3)",
+    }}
+  />
+);
+
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8f8f86" strokeWidth="2">
+    <circle cx="11" cy="11" r="7" />
+    <path d="m21 21-4.3-4.3" />
+  </svg>
+);
+
+/** Decorative static waveform for the moment card. */
+function Waveform() {
+  const bars = [5, 10, 14, 8, 12, 6, 11, 14, 7];
+  return (
+    <div className="flex gap-[2px] items-end h-3.5 mt-2">
+      {bars.map((h, i) => (
+        <span
+          key={i}
+          className="w-0.5 rounded-sm"
+          style={{ height: `${h}px`, background: "#1c8a3e" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Annotation pill with a dashed connector line. */
+function Annotation({
+  label,
+  top,
+  left,
+  right,
+  lineWidth,
+  lineTop,
+  lineLeft,
+  lineRight,
+  rotate,
+  color = "#1c8a3e",
+}: {
+  label: string;
+  top?: number | string;
+  left?: number | string;
+  right?: number | string;
+  lineWidth: number;
+  lineTop: number | string;
+  lineLeft?: number | string;
+  lineRight?: number | string;
+  rotate: number;
+  color?: string;
+}) {
+  return (
+    <>
+      <div
+        className="absolute z-20 hidden xl:flex items-center gap-1.5 bg-white border border-[rgba(20,20,15,0.10)] rounded-full px-3 py-1.5 text-[10.5px] font-bold text-[#55554d] whitespace-nowrap"
+        style={{ top, left, right, boxShadow: "0 8px 18px -8px rgba(0,0,0,0.18)" }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
+        {label}
+      </div>
+      <div
+        className="absolute z-10 hidden xl:block border-t border-dashed border-[rgba(20,20,15,0.35)]"
+        style={{
+          top: lineTop,
+          left: lineLeft,
+          right: lineRight,
+          width: lineWidth,
+          transform: `rotate(${rotate}deg)`,
+          transformOrigin: lineLeft !== undefined ? "left center" : "right center",
+        }}
+      />
+    </>
+  );
+}
 
 export default function Home() {
   const { user } = useCurrentUser();
@@ -85,294 +158,384 @@ export default function Home() {
 
   const playable = (videos ?? []).filter((v) => v.videoUrl && v.status === "indexed");
   const heroA = authed ? playable[0] : undefined;
-  const heroB = authed ? (playable[1] ?? playable[0]) : undefined;
-
-  const { data: heroADetail } = useGetVideo(heroA?.id ?? 0, {
-    query: { enabled: !!heroA, queryKey: getGetVideoQueryKey(heroA?.id ?? 0) },
-  });
-  const heroQuote = heroADetail?.transcriptExcerpt?.trim();
+  const heroQuote = heroA ? undefined : undefined; // decorative only in this new design
 
   return (
-    <div className="min-h-[100dvh] flex flex-col relative bg-background">
-      {/* Soft radial glow */}
-      <div className="absolute top-[8%] left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-white rounded-full opacity-80 blur-[100px] pointer-events-none" />
-
+    <div className="min-h-screen flex flex-col relative bg-[#f4f4f2]">
       <Navbar variant="public" />
 
-      <main className="flex-1 w-full pt-20 pb-16 relative z-10 px-6 flex flex-col items-center overflow-x-hidden">
+      {/* ── HERO ─────────────────────────────────────────────────────── */}
+      <section
+        className="relative flex flex-col items-center justify-center min-h-[auto] md:min-h-[100vh] px-5 sm:px-6 pt-24 md:pt-28 pb-8 md:pb-7 overflow-hidden"
+      >
+        {/* Soft radial glow */}
+        <div
+          className="absolute pointer-events-none z-0"
+          style={{
+            top: "38%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 900,
+            height: 700,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, #ffffff 0%, rgba(255,255,255,0) 65%)",
+          }}
+        />
 
-        {/* ── Hero Section ─────────────────────────────────────────────── */}
-        {/* Tightened vertical rhythm so preview panel is above-the-fold   */}
-        <div className="w-full max-w-4xl mx-auto text-center relative z-20 mt-4 mb-8">
-
-          {/* Floating cards — anchored to text block */}
-          <div className="absolute inset-0 pointer-events-none hidden sm:block">
-
-            {/* Memory Card A (Top Left) */}
-            <div className="absolute top-[0%] right-[100%] mr-4 md:mr-6 lg:mr-10 xl:mr-16 scale-[0.4] md:scale-[0.5] lg:scale-[0.65] xl:scale-[0.85] origin-right opacity-30 md:opacity-60 lg:opacity-80 xl:opacity-100 transition-all duration-500">
-              <div className="animate-float" style={{ '--tw-rotate': '-4deg' } as React.CSSProperties}>
-                <StitchedCard
-                  className="bg-card p-2 pb-4 rounded-[16px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] w-52 text-left"
-                  radius={16}
-                  strokeColor="rgba(0,0,0,0.18)"
-                >
-                  <div className="aspect-[4/3] rounded-xl overflow-hidden mb-3 bg-secondary">
-                    {heroA?.videoUrl ? (
-                      <HlsLoop src={heroA.videoUrl} />
-                    ) : (
-                      <img src="/images/trekking.jpg" className="w-full h-full object-cover" alt="" />
-                    )}
-                  </div>
-                  <div className="px-2">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
-                      {heroA ? heroA.title : "Spoken words indexed"}
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {heroA ? monthYear(heroA.uploadedAt) : "Searchable in minutes"}
-                    </p>
-                  </div>
-                </StitchedCard>
-              </div>
+        {/* Floating decorative cards */}
+        <div className="hidden xl:block pointer-events-none">
+          {/* Left photo stack */}
+          <div className="absolute top-[150px] left-9 z-10">
+            <div className="float-anim" style={{ ["--rot" as string]: "-8deg", transform: "rotate(-8deg)" }}>
+              <StitchedCard
+                className="w-[118px] h-[150px] bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
+                inset={5}
+                radius={9}
+              >
+                <div
+                  className="w-full h-full rounded-[7px]"
+                  style={{ background: "linear-gradient(160deg, #173f22, #0c1f12)" }}
+                />
+              </StitchedCard>
             </div>
-
-            {/* Memory Card B (Bottom Left) */}
-            <div className="absolute top-[55%] right-[100%] mr-2 md:mr-3 lg:mr-5 xl:mr-10 scale-[0.35] md:scale-[0.45] lg:scale-[0.55] xl:scale-[0.7] origin-right opacity-20 md:opacity-40 lg:opacity-60 xl:opacity-80 transition-all duration-500">
-              <div className="animate-float-delayed" style={{ '--tw-rotate': '-2deg' } as React.CSSProperties}>
-                <StitchedCard
-                  className="bg-card p-2 pb-4 rounded-[16px] shadow-lg w-52 text-left"
-                  radius={16}
-                  strokeColor="rgba(0,0,0,0.15)"
-                >
-                  <div className="aspect-[4/3] rounded-xl overflow-hidden bg-secondary">
-                    {heroB?.videoUrl ? (
-                      <HlsLoop
-                        src={heroB.videoUrl}
-                        startAt={heroB.id === heroA?.id ? Math.floor(heroB.durationSeconds / 2) : 0}
-                      />
-                    ) : (
-                      <img src="/images/beach.jpg" className="w-full h-full object-cover" alt="" />
-                    )}
-                  </div>
-                </StitchedCard>
-              </div>
-            </div>
-
-            {/* Dark Card (Top Right) */}
-            <div className="absolute top-[10%] left-[100%] ml-4 md:ml-6 lg:ml-10 xl:ml-16 scale-[0.4] md:scale-[0.5] lg:scale-[0.7] xl:scale-[0.9] origin-left opacity-40 md:opacity-70 lg:opacity-90 xl:opacity-100 transition-all duration-500">
-              <div className="animate-float" style={{ '--tw-rotate': '4deg' } as React.CSSProperties}>
-                <StitchedCard
-                  className="bg-[#14140f] text-white p-6 rounded-[16px] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] w-72 text-left"
-                  radius={16}
-                  strokeColor="rgba(255,255,255,0.12)"
-                >
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-                      <Search className="w-3.5 h-3.5 text-accent" />
-                    </div>
-                    <span className="text-[11px] font-bold tracking-widest uppercase text-white/50">Moment found</span>
-                  </div>
-                  <p className="text-base font-serif italic mb-5 leading-relaxed text-white/90">
-                    {heroQuote
-                      ? `"${heroQuote.slice(0, 100)}${heroQuote.length > 100 ? "…" : ""}"`
-                      : '"Search a lifetime of footage by what was actually said…"'}
-                  </p>
-                  <div className="w-full h-10 flex items-end gap-[2px] opacity-70 relative">
-                    {[...Array(30)].map((_, i) => {
-                      const height = i === 12 ? 100 : i === 11 || i === 13 ? 80 : Math.max(15, ((i * 37) % 23) / 23 * 60);
-                      return (
-                        <div key={i} className={`flex-1 rounded-full ${i >= 11 && i <= 13 ? 'bg-accent' : 'bg-white/20'}`} style={{ height: `${height}%` }} />
-                      );
-                    })}
-                    <div className="absolute w-[2px] h-12 bg-accent left-[40%] bottom-0 z-10 shadow-[0_0_10px_rgba(28,138,62,0.8)]" />
-                    <div className="absolute text-[10px] font-mono font-bold text-accent left-[40%] -bottom-5 -ml-3">
-                      {heroA ? mmss(Math.floor(heroA.durationSeconds / 2)) : "02:14"}
-                    </div>
-                  </div>
-                </StitchedCard>
-              </div>
-            </div>
-
-            {/* Bottom Right Clip Result Card */}
-            <div className="absolute bottom-[0%] left-[100%] ml-6 md:ml-8 lg:ml-12 xl:ml-20 scale-[0.4] md:scale-[0.5] lg:scale-[0.65] xl:scale-[0.82] origin-left opacity-40 md:opacity-60 lg:opacity-80 xl:opacity-100 transition-all duration-500">
-              <div className="animate-float-delayed" style={{ '--tw-rotate': '3deg' } as React.CSSProperties}>
-                <StitchedCard
-                  className="bg-card p-3 rounded-[16px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] flex items-center gap-4 w-72 text-left"
-                  radius={16}
-                  strokeColor="rgba(0,0,0,0.16)"
-                >
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-secondary shrink-0 relative shadow-inner">
-                    {heroA?.thumbnailUrl ? (
-                      <img src={heroA.thumbnailUrl} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                      <img src="/images/birthday.jpg" className="w-full h-full object-cover" alt="" />
-                    )}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-                      <Play className="w-5 h-5 text-white fill-white shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-bold mb-1 truncate">{heroA ? heroA.title : "Your first upload"}</h4>
-                    <p className="text-[11px] text-muted-foreground font-semibold truncate">
-                      {heroA ? `Indexed · ${mmss(heroA.durationSeconds)}` : "Transcribed & privacy-scanned"}
-                    </p>
-                  </div>
-                </StitchedCard>
-              </div>
+            <div
+              className="float-anim d1 absolute top-[120px] left-16 z-20"
+              style={{ ["--rot" as string]: "7deg", transform: "rotate(7deg)" }}
+            >
+              <StitchedCard
+                className="w-[100px] h-[126px] bg-white rounded-[14px] p-2 shadow-[0_18px_34px_-14px_rgba(0,0,0,0.28)]"
+                inset={5}
+                radius={9}
+              >
+                <div
+                  className="w-full h-full rounded-[7px]"
+                  style={{ background: "linear-gradient(160deg, #2a2a24, #050503)" }}
+                />
+              </StitchedCard>
             </div>
           </div>
 
-          {/* Pill badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-primary text-xs font-bold mb-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-border relative z-10">
-            <CheckCircle className="w-3.5 h-3.5 text-accent" />
-            <span className="tracking-wide">FOR YOUR GALLERY, GOOGLE PHOTOS, OR YOUTUBE</span>
+          <Annotation
+            label='Scene extracted · "trekking, mountains"'
+            top={140}
+            left={172}
+            lineTop={150}
+            lineLeft={150}
+            lineWidth={34}
+            rotate={18}
+          />
+          <Annotation
+            label="People detected · 3 faces"
+            top={300}
+            left={20}
+            lineTop={300}
+            lineLeft={78}
+            lineWidth={30}
+            rotate={-10}
+            color="#f59e0b"
+          />
+
+          {/* Right moment card */}
+          <div
+            className="absolute top-[130px] right-9 z-10 w-[220px] float-anim d2"
+            style={{ ["--rot" as string]: "2deg", transform: "rotate(2deg)" }}
+          >
+            <div
+              className="rounded-[15px] p-4 text-white"
+              style={{
+                background: "#14140f",
+                boxShadow: "0 22px 44px -14px rgba(0,0,0,0.45)",
+              }}
+            >
+              <p className="font-mono text-[9.5px] text-[#8f8f86] mb-1.5">MOMENT FOUND</p>
+              <p className="text-sm font-bold leading-snug mb-2">"We finally made it to the top..."</p>
+              <Waveform />
+            </div>
           </div>
 
-          {/* Headline — tightened size so preview is above the fold */}
-          <h1 className="text-[48px] md:text-[68px] font-extrabold tracking-[-0.04em] leading-[1.05] text-primary mb-4 relative z-10">
-            Everything you've <br className="hidden md:block" />
-            <span className="text-accent">filmed.</span>{' '}
-            <span className="font-mono tracking-tight bg-primary text-primary-foreground px-5 py-1.5 rounded-2xl rotate-[-3deg] inline-block shadow-2xl relative -top-1">Found.</span>
+          <Annotation
+            label="Audio transcript indexed"
+            top={100}
+            right={78}
+            lineTop={112}
+            lineRight={110}
+            lineWidth={30}
+            rotate={-25}
+            color="#3b82f6"
+          />
+
+          {/* Bottom right clip card */}
+          <div
+            className="absolute bottom-16 right-10 z-10 float-anim d1"
+            style={{ ["--rot" as string]: "-3deg", transform: "rotate(-3deg)" }}
+          >
+            <div className="w-[170px] bg-white rounded-xl p-2.5 flex gap-2.5 items-center border border-[rgba(20,20,15,0.10)] shadow-[0_16px_32px_-14px_rgba(0,0,0,0.2)]">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg, #2a2a24, #050503)" }}
+              >
+                <Play className="w-3 h-3 text-white fill-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold truncate leading-tight">Sarah's 30th</p>
+                <p className="text-[9.5px] text-[#55554d] font-medium">Indexed · 3 people</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hero text + CTA */}
+        <div className="relative z-30 text-center max-w-[820px]">
+          <span
+            className="inline-flex items-center gap-2 mb-4 text-[13.5px] font-bold text-[#14140f]"
+            style={{
+              padding: "8px 18px",
+              borderRadius: 999,
+              background: "linear-gradient(180deg, #ffffff, #f1f1ee)",
+              border: "1px solid #e2e2dd",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), 0 6px 16px -6px rgba(0,0,0,0.12)",
+            }}
+          >
+            <CheckCircle className="w-3.5 h-3.5 text-[#1c8a3e]" />
+            For your gallery, Google Photos, or YouTube
+          </span>
+
+          <h1 className="text-[32px] sm:text-[38px] md:text-[52px] font-extrabold tracking-[-0.03em] leading-[1.08] text-[#14140f]">
+            Everything you've <span className="text-[#1c8a3e]">filmed.</span>
+            <br className="hidden md:block" />
+            <span
+              className="font-mono font-semibold text-white px-3 py-1 md:px-3.5 rounded-lg inline-block mx-1"
+              style={{
+                background: "#14140f",
+                transform: "rotate(-1.5deg)",
+                boxShadow: "0 6px 14px -6px rgba(0,0,0,0.4)",
+              }}
+            >
+              Found.
+            </span>
           </h1>
 
-          <p className="text-lg md:text-xl text-muted-foreground font-medium max-w-xl mx-auto leading-relaxed mb-7 relative z-10">
+          <p className="mt-4 md:mt-5 text-[15.5px] text-[#55554d] font-medium leading-relaxed max-w-xl mx-auto">
             Search a lifetime of video like it's one searchable memory — by what was said, what happened, and who was there.
           </p>
 
-          {/* CTA row */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-5">
             <GlossyButton
               variant="dark"
               href={authed ? "/dashboard" : "/login"}
-              icon={<ArrowRight className="w-3.5 h-3.5" />}
+              icon={<ArrowRight className="w-4 h-4" />}
+              className="px-6 py-3.5 text-[15px]"
             >
               {authed ? "Open your library" : "Start searching"}
             </GlossyButton>
-            <a href="#" className="text-sm font-bold text-muted-foreground hover:text-primary hover:underline underline-offset-4 transition-colors">
+            <a
+              href="#how"
+              className="text-[15px] font-semibold text-[#55554d] hover:text-[#14140f] border-b border-transparent hover:border-[#14140f] transition-colors pb-0.5"
+            >
               See how indexing works
             </a>
           </div>
         </div>
 
-        {/* ── Product Preview Panel ────────────────────────────────────── */}
-        <div className="w-full max-w-[1040px] mx-auto z-30 transform-gpu animate-in fade-in slide-in-from-bottom-6 duration-1000">
-          <div className="bg-[#14140f] text-white rounded-[24px] md:rounded-[32px] border border-white/10 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
-
-            {/* Top Bar */}
-            <div className="px-6 py-3.5 flex items-center justify-between border-b border-white/5 bg-white/[0.02]">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                  <div className="w-2 h-2 bg-accent rounded-sm" />
-                </div>
-                <span className="font-bold text-lg tracking-tight leading-none mb-0.5">recall</span>
+        {/* ── App Preview Panel ────────────────────────────────────── */}
+        <div className="relative z-20 w-full max-w-[760px] mt-6 md:mt-7">
+          <div
+            className="rounded-[22px] p-5 md:p-6 border border-[#2a2a24]"
+            style={{
+              background: "linear-gradient(180deg, #1b1b16, #0d0d0a)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.06), 0 40px 70px -20px rgba(0,0,0,0.55)",
+            }}
+          >
+            {/* Top bar */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-white font-extrabold text-[14.5px]">
+                <BrandMark />
+                recall
               </div>
-
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex items-center bg-white/5 rounded-full p-1">
-                  <button className="px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-bold transition-colors">
-                    Library {authed && stats?.totalVideos !== undefined ? stats.totalVideos : ''}
-                  </button>
-                  <button className="px-4 py-1.5 rounded-full text-white/50 hover:text-white/80 text-xs font-bold transition-colors">
-                    People {authed && stats?.totalPeople !== undefined ? stats.totalPeople : ''}
-                  </button>
-                  <button className="px-4 py-1.5 rounded-full text-white/50 hover:text-white/80 text-xs font-bold transition-colors">
-                    Review {authed && stats?.pendingReviewCount ? stats.pendingReviewCount : ''}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel Body */}
-            <div className="p-5 md:p-8 bg-gradient-to-b from-white/[0.02] to-transparent">
-
-              {/* Search Bar — gradient fill + gradient stroke */}
-              <Link href={authed ? "/dashboard" : "/login"} className="block relative group mb-6 cursor-text">
-                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                  <Search className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
-                </div>
-                <div
-                  className="w-full h-14 md:h-16 pl-12 pr-5 rounded-full flex items-center text-white/40 group-hover:text-white/60 transition-all text-base font-medium"
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="text-[11.5px] font-bold px-3 py-1.5 rounded-full"
                   style={{
-                    ...inputGradientStyle,
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 12px rgba(0,0,0,0.2)",
+                    background: "linear-gradient(180deg, #ffffff, #e8e8e8)",
+                    color: "#111",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 10px -4px rgba(0,0,0,0.3)",
                   }}
                 >
-                  Ask anything about your memories...
-                </div>
-              </Link>
-
-              {/* Video Cards Row */}
-              {!authed ? (
-                <div className="py-8 flex flex-col items-center text-center">
-                  <p className="text-white/60 font-medium mb-5 max-w-md">
-                    Log in to see your library here — every upload is transcribed, indexed, and privacy-scanned automatically.
-                  </p>
-                  <GlossyButton variant="light" href="/login" icon={<ArrowRight className="w-3.5 h-3.5" />}>
-                    Sign in to your archive
-                  </GlossyButton>
-                </div>
-              ) : isLoadingVideos ? (
-                <div className="flex gap-4">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="w-[240px] md:w-[260px] shrink-0 animate-pulse">
-                      <div className="aspect-video bg-white/5 rounded-[16px] mb-3" />
-                      <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-white/5 rounded w-1/2" />
-                    </div>
-                  ))}
-                </div>
-              ) : (videos?.length ?? 0) === 0 ? (
-                <div className="py-8 flex flex-col items-center text-center">
-                  <p className="text-white/60 font-medium mb-5 max-w-md">
-                    Your library is empty. Upload your first video and it will show up here, fully searchable.
-                  </p>
-                  <GlossyButton variant="light" href="/dashboard" icon={<ArrowRight className="w-3.5 h-3.5" />}>
-                    Upload a video
-                  </GlossyButton>
-                </div>
-              ) : (
-                <div className="flex overflow-x-auto pb-3 -mx-5 px-5 md:mx-0 md:px-0 gap-4 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                  {videos!.slice(0, 5).map(video => (
-                    <Link key={video.id} href="/dashboard" className="w-[240px] md:w-[260px] shrink-0 group snap-start block">
-                      {/* Stitched border on each video card */}
-                      <StitchedCard
-                        className="aspect-video bg-white/5 rounded-[16px] mb-3 overflow-hidden relative"
-                        radius={16}
-                        strokeColor="rgba(255,255,255,0.14)"
-                        strokeWidth={1.5}
-                        dashLength={6}
-                        dashGap={4}
-                      >
-                        {video.thumbnailUrl ? (
-                          <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/20">
-                            <Play className="w-8 h-8" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center">
-                            <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-                          </div>
-                        </div>
-                      </StitchedCard>
-                      <h4 className="font-bold text-sm text-white mb-1 truncate group-hover:text-accent transition-colors">{video.title}</h4>
-                      <p className="text-[11px] text-white/50 font-medium truncate flex items-center gap-1.5">
-                        {video.location && <span>{video.location}</span>}
-                        {video.location && <span>·</span>}
-                        <span>{mmss(video.durationSeconds)}</span>
-                        <span>·</span>
-                        <span>{video.recordedAt ? new Date(video.recordedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : monthYear(video.uploadedAt)}</span>
-                      </p>
-                    </Link>
-                  ))}
-                </div>
-              )}
-
+                  Library {authed && stats?.totalVideos !== undefined ? stats.totalVideos : ""}
+                </span>
+                <span className="text-[11.5px] font-bold px-3 py-1.5 rounded-full text-[#9a9a90]">
+                  People {authed && stats?.totalPeople !== undefined ? stats.totalPeople : ""}
+                </span>
+                <span className="text-[11.5px] font-bold px-3 py-1.5 rounded-full text-[#9a9a90]">
+                  Review {authed && stats?.pendingReviewCount ? stats.pendingReviewCount : ""}
+                </span>
+              </div>
             </div>
+
+            {/* Search glass */}
+            <Link href={authed ? "/dashboard" : "/login"} className="block relative group mb-4 cursor-text">
+              <div
+                className="flex items-center gap-2.5 rounded-full px-4 py-3.5"
+                style={{
+                  background: "linear-gradient(180deg, #222219, #17170f)",
+                  border: "1px solid #33332a",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 6px rgba(0,0,0,0.3)",
+                }}
+              >
+                <SearchIcon />
+                <span className="text-[13.5px] font-medium text-[#8f8f86]">Ask anything about your memories...</span>
+              </div>
+            </Link>
+
+            {/* Preview grid */}
+            {!authed ? (
+              <div className="py-6 flex flex-col items-center text-center">
+                <p className="text-[#8f8f86] font-medium mb-4 max-w-md text-sm">
+                  Log in to see your library here — every upload is transcribed, indexed, and privacy-scanned automatically.
+                </p>
+                <GlossyButton variant="light" href="/login" className="px-5 py-2.5 text-[13.5px]">
+                  Sign in to your archive
+                </GlossyButton>
+              </div>
+            ) : isLoadingVideos ? (
+              <div className="flex gap-2.5 overflow-hidden">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex-1 min-w-0 animate-pulse">
+                    <div className="aspect-[4/3] bg-white/5 rounded-[10px]" />
+                    <div className="h-3.5 bg-white/5 rounded w-3/4 mt-1.5" />
+                    <div className="h-3 bg-white/5 rounded w-1/2 mt-1" />
+                  </div>
+                ))}
+              </div>
+            ) : (videos?.length ?? 0) === 0 ? (
+              <div className="py-6 flex flex-col items-center text-center">
+                <p className="text-[#8f8f86] font-medium mb-4 max-w-md text-sm">
+                  Your library is empty. Upload your first video and it will show up here, fully searchable.
+                </p>
+                <GlossyButton variant="light" href="/dashboard" className="px-5 py-2.5 text-[13.5px]">
+                  Upload a video
+                </GlossyButton>
+              </div>
+            ) : (
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {videos!.slice(0, 4).map((video) => (
+                  <Link key={video.id} href="/dashboard" className="w-[140px] sm:w-[160px] md:flex-1 md:min-w-0 shrink-0 group snap-start block">
+                    <div className="aspect-[4/3] rounded-[10px] overflow-hidden border border-[#2a2a24] bg-gradient-to-br from-[#2a2a24] to-[#0c0c08]">
+                      {video.thumbnailUrl ? (
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/20">
+                          <Play className="w-7 h-7" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] font-bold text-[#eee] mt-1.5 truncate group-hover:text-[#1c8a3e] transition-colors">
+                      {video.title}
+                    </p>
+                    <p className="text-[9.5px] text-[#8f8f86] truncate">
+                      {video.location && <span>{video.location} · </span>}
+                      {mmss(video.durationSeconds)} · {video.recordedAt ? new Date(video.recordedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : monthYear(video.uploadedAt)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+      </section>
 
-      </main>
+      {/* ── HOW IT WORKS ─────────────────────────────────────────────── */}
+      <section id="how" className="px-6 py-20 md:py-24 max-w-[1100px] mx-auto">
+        <p className="font-mono text-xs text-[#1c8a3e] font-bold text-center mb-2.5 tracking-wide">HOW IT WORKS</p>
+        <h2 className="text-[28px] md:text-[38px] font-extrabold tracking-[-0.02em] text-center text-[#14140f] max-w-[640px] mx-auto mb-12 md:mb-14 leading-tight">
+          From a folder of unsearchable footage to one search bar.
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {[
+            {
+              num: "01",
+              title: "Bring your videos",
+              body: "Drag in a folder, connect Google Photos, or pull from your YouTube channel — all in one batch.",
+            },
+            {
+              num: "02",
+              title: "We index everything",
+              body: "Every video is understood two ways at once — what was said, and what was visually happening.",
+            },
+            {
+              num: "03",
+              title: "You stay in control",
+              body: "Anything sensitive is quietly set aside for your review — nothing searchable without your say-so.",
+            },
+            {
+              num: "04",
+              title: "Just ask",
+              body: "Type what you remember, in plain language, and get back the exact clip and moment.",
+            },
+          ].map((step) => (
+            <div
+              key={step.num}
+              className="bg-white rounded-2xl p-5 md:p-6 border border-[rgba(20,20,15,0.10)]"
+              style={{ boxShadow: "0 10px 26px -14px rgba(0,0,0,0.12)" }}
+            >
+              <p className="font-mono text-xs text-[#1c8a3e] font-bold mb-2.5">{step.num}</p>
+              <h3 className="text-[17px] font-extrabold text-[#14140f] mb-2">{step.title}</h3>
+              <p className="text-[13.5px] text-[#55554d] leading-relaxed">{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── WHY RECALL ───────────────────────────────────────────────── */}
+      <section className="px-6 py-20 md:py-24 max-w-[1100px] mx-auto">
+        <p className="font-mono text-xs text-[#1c8a3e] font-bold text-center mb-2.5 tracking-wide">WHY RECALL</p>
+        <h2 className="text-[28px] md:text-[38px] font-extrabold tracking-[-0.02em] text-center text-[#14140f] max-w-[640px] mx-auto mb-12 md:mb-14 leading-tight">
+          Text got a second brain years ago. Video never did.
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[
+            {
+              title: "Video is unsearchable by default",
+              body: "Notes and docs are trivial to search. A thousand personal videos are not — until now.",
+            },
+            {
+              title: "Understands what happened, not just what was said",
+              body: "Even silent clips and screen recordings are searchable by what's visually in them.",
+            },
+            {
+              title: "Private by design",
+              body: "Sensitive moments are flagged before they're ever searchable — you decide what stays.",
+            },
+          ].map((card) => (
+            <div
+              key={card.title}
+              className="bg-white rounded-2xl p-6 border border-[rgba(20,20,15,0.10)]"
+            >
+              <div
+                className="w-9 h-9 rounded-[10px] mb-3.5"
+                style={{ background: "linear-gradient(135deg, #1c8a3e, #0e5024)" }}
+              />
+              <h3 className="text-base font-extrabold text-[#14140f] mb-2">{card.title}</h3>
+              <p className="text-[13.5px] text-[#55554d] leading-relaxed">{card.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <style>{`
+        @keyframes bob {
+          0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+          50% { transform: translateY(-8px) rotate(var(--rot, 0deg)); }
+        }
+        .float-anim { animation: bob 6s ease-in-out infinite; }
+        .float-anim.d1 { animation-delay: 0.8s; }
+        .float-anim.d2 { animation-delay: 1.6s; }
+      `}</style>
     </div>
   );
 }

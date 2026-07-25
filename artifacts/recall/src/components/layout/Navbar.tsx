@@ -1,7 +1,33 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LogOut } from "lucide-react";
+import { LogOut, Moon } from "lucide-react";
 import { useCurrentUser, useLogoutAction } from "@/lib/auth";
+import { GlossyButton } from "@/components/ui/glossy-button";
+
+/**
+ * Brand mark — the reference uses a leaf-shaped outline with a central dot.
+ * Using the same icon as the existing app, just styled with the gradient.
+ */
+function BrandMark({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`rounded-md flex items-center justify-center ${className}`}
+      style={{
+        background: "linear-gradient(135deg, #1c8a3e, #0e5024)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3)",
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" className="w-3/4 h-3/4">
+        <path
+          d="M4 12c2-5 6-8 8-8s6 3 8 8c-2 5-6 8-8 8s-6-3-8-8Z"
+          stroke="#fff"
+          strokeWidth="2"
+        />
+        <circle cx="12" cy="12" r="2.2" fill="#fff" />
+      </svg>
+    </div>
+  );
+}
 
 function initialsOf(name: string, email: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -66,72 +92,78 @@ export function Navbar({ variant = "public" }: { variant?: "public" | "app" }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  /* Pill mode — floated, centered, with rounded corners and shadow */
-  const pillStyle = scrolled
-    ? {
-        margin: "12px auto",
-        maxWidth: "720px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        borderRadius: "9999px",
-        padding: "0 20px",
-        background: "rgba(244,244,242,0.92)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "0 4px 24px -4px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06)",
-        border: "1px solid rgba(0,0,0,0.07)",
-      }
-    : {};
+  const isPublic = variant === "public";
+  const links = isPublic
+    ? [
+        { href: "/search", label: "Search" },
+        { href: "/dashboard", label: "Library" },
+        { href: "/dashboard", label: "People" },
+        { href: "/dashboard", label: "Review" },
+      ]
+    : [
+        { href: "/dashboard", label: "Library", active: location === "/dashboard" },
+        { href: "/search", label: "Search", active: location.startsWith("/search") },
+        { href: "/dashboard", label: "People" },
+        { href: "/dashboard", label: "Review" },
+      ];
 
   return (
-    <nav
-      className="w-full flex items-center justify-between px-6 md:px-10 py-4 fixed top-0 z-50 transition-all duration-300"
-      style={scrolled ? pillStyle : { background: "transparent" }}
+    <div
+      className="fixed top-0 left-0 right-0 z-50 flex justify-center transition-[padding] duration-300"
+      style={{ padding: scrolled ? "12px 24px" : "18px 24px" }}
     >
-      <Link href={variant === "public" ? "/" : "/dashboard"} className="flex items-center gap-2 group">
-        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center group-hover:scale-105 transition-transform">
-          <div className="w-2 h-2 bg-accent rounded-sm" />
-        </div>
-        <span className="font-bold text-xl tracking-tight leading-none mb-0.5">recall</span>
-      </Link>
+      <nav
+        className="w-full flex items-center justify-between px-5 py-3 rounded-full transition-all duration-300"
+        style={
+          scrolled
+            ? {
+                maxWidth: 980,
+                background: "linear-gradient(180deg, #ffffff, #f7f7f5)",
+                border: "1px solid #e5e5e0",
+                boxShadow:
+                  "inset 0 1px 0 rgba(255,255,255,0.9), 0 12px 30px -10px rgba(0,0,0,0.18)",
+              }
+            : {
+                maxWidth: 1400,
+                background: "transparent",
+                border: "1px solid transparent",
+              }
+        }
+      >
+        <Link href={isPublic ? "/" : "/dashboard"} className="flex items-center gap-2.5 group">
+          <BrandMark className="w-6 h-6 group-hover:scale-105 transition-transform" />
+          <span className="font-extrabold text-lg tracking-tight leading-none mb-0.5">recall</span>
+        </Link>
 
-      {variant === "public" ? (
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium">
-          <Link href="/search" className="text-muted-foreground hover:text-primary transition-colors">Search</Link>
-          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Library</Link>
-          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
-          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
-        </div>
-      ) : (
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium">
-          <Link href="/dashboard" className={location === "/dashboard" ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Library</Link>
-          <Link href="/search" className={location.startsWith("/search") ? "text-primary" : "text-muted-foreground hover:text-primary transition-colors"}>Search</Link>
-          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">People</Link>
-          <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Review</Link>
-        </div>
-      )}
-
-      <div className="flex items-center gap-3">
-        {variant === "public" ? (
-          <>
-            <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4 mx-2">Log in</Link>
+        <div className="hidden md:flex items-center gap-7 text-sm font-medium text-[#55554d]">
+          {links.map((l) => (
             <Link
-              href="/login"
-              className="inline-flex items-center gap-2 h-10 px-5 rounded-full font-semibold text-sm transition-all hover:scale-[1.03] active:scale-95"
-              style={{
-                background: "linear-gradient(180deg,#414141,#030303) padding-box,linear-gradient(180deg,#575757 0%,#313131 25%,#1C1C1C 100%) border-box",
-                border: "1.5px solid transparent",
-                color: "#fff",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-              }}
+              key={l.label}
+              href={l.href}
+              className={`hover:text-[#14140f] transition-colors ${
+                l.active ? "text-[#14140f] font-semibold" : ""
+              }`}
             >
-              Get started
+              {l.label}
             </Link>
-          </>
-        ) : (
-          <UserMenu />
-        )}
-      </div>
-    </nav>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isPublic ? (
+            <>
+              <Link href="/login" className="hidden sm:inline text-sm font-semibold text-[#55554d] hover:text-[#14140f] transition-colors">
+                Log in
+              </Link>
+              <GlossyButton href="/login" variant="dark" className="px-4 py-2.5 text-[13.5px]">
+                Get started
+              </GlossyButton>
+            </>
+          ) : (
+            <UserMenu />
+          )}
+        </div>
+      </nav>
+    </div>
   );
 }

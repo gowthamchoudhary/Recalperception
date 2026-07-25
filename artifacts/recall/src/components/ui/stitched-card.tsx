@@ -1,58 +1,54 @@
 import type { ReactNode, CSSProperties } from "react";
 
 /**
- * Wraps children and overlays a proper SVG stitched border —
- * rounded-rect with round linecap dashes, consistent spacing.
- * Use instead of a plain CSS border on floating photo/video cards.
+ * Stitched / dashed frame — matches the reference landing spec.
+ *
+ * The card has a solid outer background/border/shadow with a dashed inner
+ * border inset a few pixels from the edge, rendered with a pseudo-element
+ * so the dashes are rounded and look like scrapbook stitching rather than
+ * a flat browser dashed border.
  */
 type Props = {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
-  /** Border radius of the card in px — must match the card's own radius. */
-  radius?: number;
-  /** Stroke color (default: rgba(0,0,0,0.18) on light, rgba(255,255,255,0.18) on dark) */
-  strokeColor?: string;
+  /** Color of the dashed inner border (default: rgba(20,20,15,0.28)). */
+  stitchColor?: string;
+  /** Distance the dashed border is inset from the card edge in px. */
+  inset?: number;
+  /** Stroke width of the dashed border in px. */
   strokeWidth?: number;
-  dashLength?: number;
-  dashGap?: number;
+  /** Radius of the dashed border in px (outerRadius - inset). */
+  radius?: number;
 };
 
 export function StitchedCard({
   children,
   className = "",
   style,
-  radius = 16,
-  strokeColor = "rgba(0,0,0,0.2)",
-  strokeWidth = 1.5,
-  dashLength = 5,
-  dashGap = 4,
+  stitchColor = "rgba(20,20,15,0.28)",
+  inset = 5,
+  strokeWidth = 2,
+  radius = 9,
 }: Props) {
   return (
-    <div className={`relative ${className}`} style={style}>
+    <div
+      className={`relative ${className}`}
+      style={style}
+    >
       {children}
-      {/* SVG overlay — pointer-events:none so it never blocks clicks */}
-      <svg
+      <span
         aria-hidden="true"
-        className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
-        style={{ borderRadius: radius }}
-      >
-        <rect
-          x={strokeWidth / 2}
-          y={strokeWidth / 2}
-          width={`calc(100% - ${strokeWidth}px)`}
-          height={`calc(100% - ${strokeWidth}px)`}
-          rx={radius - strokeWidth / 2}
-          ry={radius - strokeWidth / 2}
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-          strokeDasharray={`${dashLength} ${dashGap}`}
-          strokeLinecap="round"
-          /* small offset so the dash pattern starts cleanly at a corner */
-          strokeDashoffset={dashLength / 2}
-        />
-      </svg>
+        className="pointer-events-none absolute"
+        style={{
+          top: inset,
+          left: inset,
+          right: inset,
+          bottom: inset,
+          borderRadius: radius,
+          border: `${strokeWidth}px dashed ${stitchColor}`,
+        }}
+      />
     </div>
   );
 }
