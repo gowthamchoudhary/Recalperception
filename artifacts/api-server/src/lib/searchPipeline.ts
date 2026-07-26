@@ -15,13 +15,7 @@ import {
 } from "./videodb";
 import { USER_MATCH_SENTINEL } from "./ingestion";
 import { rerankWithGroq, type RerankCandidate } from "./rerank";
-import {
-  parsePersonQuery,
-  confirmFacesInCandidates,
-  MAX_FACE_CANDIDATES,
-  type FaceCandidate,
-} from "./personSearch";
-import { isRekognitionConfigured } from "./rekognition";
+import { parsePersonQuery } from "./personSearch";
 import {
   classifyIntent,
   generateIntentAnswer,
@@ -443,94 +437,9 @@ export async function runSearchPipeline(
         ...spokenShots.flatMap((s) => toResult(s, "speech")),
         ...sceneShots.flatMap((s) => toResult(s, "scene")),
       ];
-      if (false) {
-        // Candidate set = newest indexed videos, sampled at their midpoint;
-        // the face check below decides what survives.
-        const names = persons.map((p) => p.name).join(" & ");
-        videodbResults = videos
-          .filter((v) => v.videodbVideoId)
-          .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
-          .slice(0, MAX_FACE_CANDIDATES)
-          .map((v, i) => ({
-            id: -(i + 1),
-            videoId: v.id,
-            videoTitle: v.title,
-            thumbnailUrl: v.thumbnailUrl,
-            videoUrl: v.videoUrl,
-            snippet: `Moment with ${names}`,
-            matchType: "scene" as const,
-            matchReason: null,
-            timestampSeconds: Math.max(
-              0,
-              Math.round((v.durationSeconds || 0) / 2),
-            ),
-            durationSeconds: v.durationSeconds,
-            people: v.people,
-            recordedAt: v.recordedAt,
-            location: v.location,
-          }));
-      }
-
       // Face confirmation: narrow to one shot per video (retrieval order),
       // cap the set, and keep only candidates where Rekognition confirms
       // EVERY requested person's enrolled FaceId in frames near the moment.
-      if (false && persons.length > 0 && videodbResults.length > 0) {
-        const seen = new Set<number>();
-        const perVideo = videodbResults.filter((r) => {
-          if (seen.has(r.videoId)) return false;
-          seen.add(r.videoId);
-          return true;
-        });
-        if (!isRekognitionConfigured()) {
-          logger.error(
-            { persons: persons.map((p) => p.name) },
-            "Person filter requested but Rekognition is not configured — returning scene-only results",
-          );
-          personFilterStatus = "unavailable";
-        } else {
-          onStage?.("person_check");
-          const faceCandidates: FaceCandidate[] = perVideo
-            .slice(0, MAX_FACE_CANDIDATES)
-            .flatMap((r) => {
-              const row = videoById.get(r.videoId);
-              return row?.videodbVideoId
-                ? [
-                    {
-                      key: r.id,
-                      videodbVideoId: row.videodbVideoId,
-                      timestampSeconds: r.timestampSeconds,
-                      durationSeconds: r.durationSeconds,
-                    },
-                  ]
-                : [];
-            });
-          const targetFaceIds = persons.map((p) => p.rekognitionFaceId);
-          const confirmation = await confirmFacesInCandidates(
-            coll,
-            faceCandidates,
-            targetFaceIds,
-          );
-          if (confirmation.status === "unavailable") {
-            personFilterStatus = "unavailable";
-          } else {
-            videodbResults = perVideo.filter((r) => {
-              const confirmed = confirmation.confirmedByKey.get(r.id);
-              return (
-                confirmed !== undefined &&
-                targetFaceIds.every((f) => confirmed.has(f))
-              );
-            });
-            logger.info(
-              {
-                persons: persons.map((p) => p.name),
-                checked: faceCandidates.length,
-                confirmed: videodbResults.length,
-              },
-              "Person filter applied to search results",
-            );
-          }
-        }
-      }
       if (persons.length > 0 && videodbResults.length > 0) {
         onStage?.("person_check");
         const matchedVideoIds = await faceMatchedVideoIds([
@@ -653,16 +562,21 @@ export async function runSearchPipeline(
     ordered = candidates;
   }
 
-  // Deduplicate: one card per video, keeping its most relevant match
-  // (rerank order when available, otherwise branch priority).
-  const maxCards = intent === "group" ? 24 : 12;
+  // Deduplicate non-group turns to one card per video. Group intent is meant
+  // to show the broad retrieved set, so preserve candidates as retrieved.
+  const maxCards = intent === "group" ? ordered.length : 12;
   const seenVideos = new Set<number>();
-  let results: ApiSearchResult[] = [];
-  for (const r of ordered) {
-    if (seenVideos.has(r.videoId)) continue;
-    seenVideos.add(r.videoId);
-    results.push(r);
-    if (results.length >= maxCards) break;
+  let results: ApiSearchResult[] =
+    intent === "group"
+      ? ordered
+      : [];
+  if (intent !== "group") {
+    for (const r of ordered) {
+      if (seenVideos.has(r.videoId)) continue;
+      seenVideos.add(r.videoId);
+      results.push(r);
+      if (results.length >= maxCards) break;
+    }
   }
 
   // Title layer: lightweight third retrieval signal. VideoDB's semantic
