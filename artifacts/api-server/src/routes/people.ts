@@ -28,7 +28,10 @@ import {
   deleteFace,
   RekognitionUnavailableError,
 } from "../lib/rekognition";
-import { enqueueFaceIndexForPerson } from "../lib/videoFaceIndex";
+import {
+  enqueueFaceIndexForPerson,
+  enqueueFaceIndexForLibrary,
+} from "../lib/videoFaceIndex";
 
 const router: IRouter = Router();
 
@@ -53,6 +56,23 @@ function toApiEnrolledPerson(row: PersonRow) {
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+/**
+ * Fire-and-forget: re-run face indexing across the user's entire library.
+ * Needed when videos were uploaded before any person was enrolled, or after
+ * the sampling logic is improved.
+ */
+router.post("/people/enrolled/rebuild-face-index", async (req, res): Promise<void> => {
+  if (!isRekognitionConfigured()) {
+    res.status(503).json({
+      error: "Face recognition is not configured. Add the AWS Rekognition secrets first.",
+    });
+    return;
+  }
+  const uid = currentUserId(req);
+  enqueueFaceIndexForLibrary(uid);
+  res.json({ ok: true, message: "Face index rebuild started for your entire library." });
+});
 
 router.get("/people/enrolled", async (req, res): Promise<void> => {
   const rows = await db

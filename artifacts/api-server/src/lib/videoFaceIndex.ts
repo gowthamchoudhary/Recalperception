@@ -18,11 +18,30 @@ import {
 
 const MAX_FRAME_BYTES = 5 * 1024 * 1024;
 
+/** Interval between sampled frames, in seconds. */
+const SAMPLE_INTERVAL = 30;
+
+/** Frames within this many seconds of each other are merged into one range. */
+const MERGE_GAP = SAMPLE_INTERVAL * 2.5;
+
 type IndexedPerson = Pick<PersonRow, "id" | "name" | "rekognitionFaceId">;
 type IndexedVideo = Pick<
   VideoRow,
   "id" | "userId" | "videodbVideoId" | "durationSeconds" | "status"
 >;
+
+type FrameMatch = {
+  timeSeconds: number;
+  personId: number;
+  confidence: number;
+};
+
+type TimelineRange = {
+  personId: number;
+  startTime: number;
+  endTime: number;
+  confidence: number;
+};
 
 export function enqueueFaceIndexForVideo(videoId: number): void {
   void indexFacesForVideo(videoId).catch((err) => {
@@ -43,8 +62,22 @@ export function enqueueFaceIndexForPerson(personId: number): void {
 }
 
 /**
+ * Re-run face indexing across every indexed video in the user's library.
+ * Needed after the first enrollment of any person (or manually via the
+ * "Rebuild face index" action) to backfill videos that predate the fix.
+ */
+export function enqueueFaceIndexForLibrary(userId: number): void {
+  void indexFacesForLibrary(userId).catch((err) => {
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err), userId },
+      "Library face-index rebuild crashed",
+    );
+  });
+}
+
+/**
  * After a video is indexed, compare sampled frames against every enrolled
- * person for that user and persist the matches.
+ * person for that user and persist the timeline ranges.
  */
 export async function indexFacesForVideo(videoId: number): Promise<void> {
   if (!isRekognitionConfigured()) {
@@ -67,7 +100,7 @@ export async function indexFacesForVideo(videoId: number): Promise<void> {
 
 /**
  * After a person is enrolled, compare them against all existing indexed
- * VideoDB videos for that user.
+ * videos for that user.
  */
 export async function indexFacesForPerson(personId: number): Promise<void> {
   if (!isRekognitionConfigured()) {
@@ -93,13 +126,48 @@ export async function indexFacesForPerson(personId: number): Promise<void> {
   }
 }
 
+/**
+ * Re-run face indexing for every indexed video in the user's library,
+ * checking against all their currently enrolled people.
+ */
+async function indexFacesForLibrary(userId: number): Promise<void> {
+  if (!isRekognitionConfigured()) {
+    logger.warn({ userId }, "Library face rebuild skipped: Rekognition not configured");
+    return;
+  }
+  const [people, videos] = await Promise.all([
+    db.select().from(peopleTable).where(eq(peopleTable.userId, userId)),
+    db
+      .select()
+      .from(videosTable)
+      .where(and(eq(videosTable.userId, userId), eq(videosTable.status, "indexed"))),
+  ]);
+  if (people.length === 0) {
+    logger.info({ userId }, "Library face rebuild: no enrolled people, nothing to do");
+    return;
+  }
+  const eligible = videos.filter((v) => v.videodbVideoId);
+  logger.info(
+    { userId, videos: eligible.length, people: people.length },
+    "Library face index rebuild started",
+  );
+  for (const video of eligible) {
+    await indexVideoAgainstPeople(video, people);
+  }
+  logger.info(
+    { userId, videos: eligible.length },
+    "Library face index rebuild complete",
+  );
+}
+
 async function indexVideoAgainstPeople(
   video: IndexedVideo,
   people: IndexedPerson[],
 ): Promise<void> {
   if (!video.videodbVideoId || people.length === 0) return;
   const targetByFaceId = new Map(people.map((p) => [p.rekognitionFaceId, p]));
-  const confidenceByPersonId = new Map<number, number>();
+  const frameMatches: FrameMatch[] = [];
+  const samplePoints = timeSamplePoints(video.durationSeconds);
 
   try {
     const coll = await withTimeout(getVideoDBCollection(), 60_000, "getCollection");
@@ -108,17 +176,15 @@ async function indexVideoAgainstPeople(
       60_000,
       "face-index: video fetch",
     );
-    for (const time of sampleTimes(video.durationSeconds)) {
+
+    for (const time of samplePoints) {
       const bytes = await extractFrame(media, time);
       if (!bytes) continue;
       const matches = await matchedFacesInFrame(bytes);
       for (const [faceId, confidence] of matches) {
         const person = targetByFaceId.get(faceId);
         if (!person) continue;
-        confidenceByPersonId.set(
-          person.id,
-          Math.max(confidenceByPersonId.get(person.id) ?? 0, confidence),
-        );
+        frameMatches.push({ timeSeconds: time, personId: person.id, confidence });
       }
     }
   } catch (err) {
@@ -139,8 +205,11 @@ async function indexVideoAgainstPeople(
     return;
   }
 
+  const ranges = buildTimelineRanges(frameMatches);
   const personIds = people.map((p) => p.id);
+
   await db.transaction(async (tx) => {
+    // Replace all existing ranges for the people being re-indexed on this video.
     await tx
       .delete(videoFacesTable)
       .where(
@@ -149,30 +218,86 @@ async function indexVideoAgainstPeople(
           inArray(videoFacesTable.personId, personIds),
         ),
       );
-    const rows = [...confidenceByPersonId].map(([personId, confidence]) => ({
-      videoId: video.id,
-      personId,
-      confidence,
-    }));
-    if (rows.length > 0) await tx.insert(videoFacesTable).values(rows);
+    if (ranges.length > 0) {
+      await tx.insert(videoFacesTable).values(
+        ranges.map((r) => ({
+          videoId: video.id,
+          personId: r.personId,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          confidence: r.confidence,
+        })),
+      );
+    }
   });
+
   logger.info(
     {
       videoId: video.id,
+      sampledFrames: samplePoints.length,
       checkedPeople: people.length,
-      matchedPeople: confidenceByPersonId.size,
+      matchedRanges: ranges.length,
     },
-    "Video face index updated",
+    "Video face timeline index updated",
   );
 }
 
-function sampleTimes(durationSeconds: number): number[] {
+/**
+ * Sample times at fixed SAMPLE_INTERVAL intervals across the full video.
+ * A 10-minute video produces ~21 frames; a 2-hour video produces ~241.
+ * Unknown duration falls back to a handful of early points.
+ */
+function timeSamplePoints(durationSeconds: number): number[] {
   const duration = Math.max(0, durationSeconds || 0);
-  const raw =
-    duration > 0
-      ? [0, duration * 0.15, duration * 0.35, duration * 0.6, duration * 0.85]
-      : [0, 5, 15, 30];
-  return [...new Set(raw.map((t) => Math.max(0, Math.round(t))))];
+  if (duration === 0) {
+    return [0, 15, 30, 60];
+  }
+  const points: number[] = [];
+  for (let t = 0; t <= duration; t += SAMPLE_INTERVAL) {
+    points.push(Math.round(t));
+  }
+  // Always cover the tail of the video.
+  const tail = Math.round(duration);
+  if (!points.includes(tail)) points.push(tail);
+  return [...new Set(points)].sort((a, b) => a - b);
+}
+
+/**
+ * Merge per-frame Rekognition matches into contiguous timeline ranges.
+ * Consecutive frames for the same person that are within MERGE_GAP seconds
+ * of each other are merged into one range. This avoids one row per frame
+ * while preserving distinct appearance clusters.
+ */
+function buildTimelineRanges(frameMatches: FrameMatch[]): TimelineRange[] {
+  const byPerson = new Map<number, FrameMatch[]>();
+  for (const m of frameMatches) {
+    const arr = byPerson.get(m.personId) ?? [];
+    arr.push(m);
+    byPerson.set(m.personId, arr);
+  }
+
+  const ranges: TimelineRange[] = [];
+  for (const [personId, matches] of byPerson) {
+    matches.sort((a, b) => a.timeSeconds - b.timeSeconds);
+    let rangeStart = matches[0]!.timeSeconds;
+    let rangeEnd = matches[0]!.timeSeconds;
+    let maxConf = matches[0]!.confidence;
+
+    for (let i = 1; i < matches.length; i++) {
+      const m = matches[i]!;
+      if (m.timeSeconds - rangeEnd <= MERGE_GAP) {
+        rangeEnd = m.timeSeconds;
+        maxConf = Math.max(maxConf, m.confidence);
+      } else {
+        ranges.push({ personId, startTime: rangeStart, endTime: rangeEnd, confidence: maxConf });
+        rangeStart = m.timeSeconds;
+        rangeEnd = m.timeSeconds;
+        maxConf = m.confidence;
+      }
+    }
+    ranges.push({ personId, startTime: rangeStart, endTime: rangeEnd, confidence: maxConf });
+  }
+  return ranges;
 }
 
 async function extractFrame(

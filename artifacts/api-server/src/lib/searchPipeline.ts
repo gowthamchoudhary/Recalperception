@@ -302,11 +302,19 @@ export async function runSearchPipeline(
   let videodbResults: ApiSearchResult[] = [];
   const selectedPersonIds = persons.map((p) => p.id);
   const personNames = persons.map((p) => p.name).join(" & ");
+  /**
+   * Returns a Map from videoId → best timeline startTime (seconds) for
+   * videos where ALL requested persons appear. The startTime comes from the
+   * highest-confidence range per person, so the player can jump straight to
+   * the exact matched moment rather than the beginning of the video.
+   *
+   * Use .has(videoId) to check presence and .get(videoId) for the timestamp.
+   */
   const faceMatchedVideoIds = async (
     candidateVideoIds?: number[],
-  ): Promise<Set<number>> => {
-    if (selectedPersonIds.length === 0) return new Set();
-    if (candidateVideoIds && candidateVideoIds.length === 0) return new Set();
+  ): Promise<Map<number, number>> => {
+    if (selectedPersonIds.length === 0) return new Map();
+    if (candidateVideoIds && candidateVideoIds.length === 0) return new Map();
     const filters = [
       eq(videosTable.userId, uid),
       inArray(videoFacesTable.personId, selectedPersonIds),
@@ -314,12 +322,14 @@ export async function runSearchPipeline(
         ? [inArray(videoFacesTable.videoId, candidateVideoIds)]
         : []),
     ];
-    let rows: { videoId: number; personId: number }[];
+    let rows: { videoId: number; personId: number; startTime: number; confidence: number }[];
     try {
       rows = await db
         .select({
           videoId: videoFacesTable.videoId,
           personId: videoFacesTable.personId,
+          startTime: videoFacesTable.startTime,
+          confidence: videoFacesTable.confidence,
         })
         .from(videoFacesTable)
         .innerJoin(videosTable, eq(videoFacesTable.videoId, videosTable.id))
@@ -335,16 +345,37 @@ export async function runSearchPipeline(
       );
       throw err;
     }
-    const byVideo = new Map<number, Set<number>>();
+    // Pick the best (highest-confidence) range per (videoId, personId).
+    const bestByKey = new Map<
+      string,
+      { videoId: number; personId: number; startTime: number; confidence: number }
+    >();
     for (const row of rows) {
-      const set = byVideo.get(row.videoId) ?? new Set<number>();
-      set.add(row.personId);
-      byVideo.set(row.videoId, set);
+      const key = `${row.videoId}:${row.personId}`;
+      const existing = bestByKey.get(key);
+      if (!existing || row.confidence > existing.confidence) {
+        bestByKey.set(key, row);
+      }
     }
-    return new Set(
+    // Aggregate by videoId: collect personIds and find earliest best startTime.
+    const byVideo = new Map<number, { personIds: Set<number>; earliestStart: number }>();
+    for (const entry of bestByKey.values()) {
+      const agg = byVideo.get(entry.videoId) ?? {
+        personIds: new Set<number>(),
+        earliestStart: Infinity,
+      };
+      agg.personIds.add(entry.personId);
+      if (entry.startTime < agg.earliestStart) agg.earliestStart = entry.startTime;
+      byVideo.set(entry.videoId, agg);
+    }
+    // Keep only videos where every requested person appears.
+    return new Map(
       [...byVideo]
-        .filter(([, found]) => selectedPersonIds.every((id) => found.has(id)))
-        .map(([videoId]) => videoId),
+        .filter(([, { personIds }]) => selectedPersonIds.every((id) => personIds.has(id)))
+        .map(([videoId, { earliestStart }]) => [
+          videoId,
+          earliestStart === Infinity ? 0 : earliestStart,
+        ]),
     );
   };
 
@@ -364,7 +395,8 @@ export async function runSearchPipeline(
         snippet: `${personNames} ${persons.length === 1 ? "appears" : "appear"} in this video.`,
         matchType: "person" as const,
         matchReason: null,
-        timestampSeconds: 0,
+        // Jump to the earliest confirmed appearance rather than the start.
+        timestampSeconds: matchedVideoIds.get(v.id) ?? 0,
         durationSeconds: v.durationSeconds,
         people: v.people,
         recordedAt: v.recordedAt,

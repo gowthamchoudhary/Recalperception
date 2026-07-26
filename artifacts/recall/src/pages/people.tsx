@@ -20,6 +20,7 @@ import {
   Check,
   X,
   ImagePlus,
+  RefreshCw,
 } from "lucide-react";
 
 /**
@@ -274,6 +275,51 @@ function PersonCard({
   );
 }
 
+function RebuildFaceIndexButton() {
+  const [state, setState] = useState<"idle" | "running" | "done" | "error">("idle");
+
+  const handleRebuild = async () => {
+    if (state === "running") return;
+    setState("running");
+    try {
+      const res = await fetch("/api/people/enrolled/rebuild-face-index", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setState("done");
+      setTimeout(() => setState("idle"), 4000);
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 4000);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => void handleRebuild()}
+      disabled={state === "running"}
+      className="rounded-full font-semibold gap-2"
+      title="Re-scan all your videos to find every enrolled person — run this if searches are returning empty results for someone you know appears."
+    >
+      {state === "running" ? (
+        <><Loader2 className="w-4 h-4 animate-spin" /> Rebuilding…</>
+      ) : state === "done" ? (
+        <><Check className="w-4 h-4 text-green-500" /> Rebuild started</>
+      ) : state === "error" ? (
+        <><X className="w-4 h-4 text-red-500" /> Failed — try again</>
+      ) : (
+        <><RefreshCw className="w-4 h-4" /> Rebuild face index</>
+      )}
+    </Button>
+  );
+}
+
 export default function People() {
   const { data: people, isLoading } = useListEnrolledPeople();
 
@@ -281,9 +327,12 @@ export default function People() {
     <AppShell>
       <main className="flex-1 max-w-[1000px] w-full mx-auto px-6 md:px-10 py-12 pb-24">
         <div className="mb-10">
-          <h1 className="text-4xl font-extrabold tracking-tight mb-3 flex items-center gap-3">
-            <ScanFace className="w-9 h-9 text-accent" /> People
-          </h1>
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <h1 className="text-4xl font-extrabold tracking-tight flex items-center gap-3">
+              <ScanFace className="w-9 h-9 text-accent" /> People
+            </h1>
+            <RebuildFaceIndexButton />
+          </div>
           <p className="text-lg font-medium text-muted-foreground max-w-2xl">
             Teach Recall who's who. Once someone is added, searches like{" "}
             <span className="text-foreground font-semibold">"Anaya blowing out candles"</span>{" "}

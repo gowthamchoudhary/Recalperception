@@ -1,0 +1,22 @@
+Rebuild face-timeline generation properly — the current 1–2-frames-per-video sampling is too sparse and is why person search returns empty even for videos where the person clearly appears. Redesign per VideoDB's own documented best practices.
+
+1. Per-scene, content-matched frame extraction
+
+For each video, extract frames using VideoDB's scene extraction with a config matched to content type: for static/talking content (interviews, screen recordings, close-up talking), use extraction_type=time_based, extraction_config={"time": 30, "frame_count": 1} — one frame every 30 seconds. For higher-motion content, use a denser config ({"time": 5, "frame_count": 3-4}).
+This replaces the current "1-2 frames per video" sampling entirely — every scene/interval gets checked, not just a couple of arbitrary frames from the whole video.
+
+2. Build a real per-person timeline, not a single yes/no row
+
+For every extracted frame, run it against every enrolled person via Rekognition.
+Store results as timeline ranges in video_faces: video_id, person_id, start_time, end_time, confidence — consecutive matching frames should merge into one continuous range, not separate rows per frame.
+
+3. When this runs
+
+On new video upload: run this extraction + matching as part of the indexing pipeline.
+On new person enrollment: run a backfill across every existing video in the library for that one new person.
+Also add a manual "Rebuild face index" action (button in settings or People page) that re-runs this for the whole library — needed right now since your existing videos and your own enrollment predate this fix, so nothing will show up until this is triggered at least once manually.
+
+4. Query-time — this stays a pure lookup, no live Rekognition calls per query
+
+Person-only query: look up matching video_faces rows directly for the mentioned/selected person(s), return their timeline ranges — this should let the player jump straight to the exact matched moment, not just the start of the video.
+Combined person + scene query: run scene/speech search and the face-timeline lookup as two separate queries, then intersect on video_id (and check timestamp overlap where possible), per VideoDB's own documented multi-index intersection pattern — don't try to do this in one merged query.
