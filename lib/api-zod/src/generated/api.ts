@@ -37,7 +37,8 @@ export const SignupResponse = zod.object({
   "id": zod.number(),
   "email": zod.string(),
   "name": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "languageProfile": zod.array(zod.string())
 })
 
 
@@ -57,7 +58,8 @@ export const LoginResponse = zod.object({
   "id": zod.number(),
   "email": zod.string(),
   "name": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "languageProfile": zod.array(zod.string())
 })
 
 
@@ -74,7 +76,28 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.number(),
   "email": zod.string(),
   "name": zod.string(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "languageProfile": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Update the current user's profile
+ */
+
+
+
+export const UpdateCurrentUserBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "languageProfile": zod.array(zod.string()).optional().describe('Languages the user regularly films in, used to flag likely transcription misdetections.')
+})
+
+export const UpdateCurrentUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string(),
+  "languageProfile": zod.array(zod.string())
 })
 
 
@@ -98,6 +121,7 @@ export const ListVideosResponseItem = zod.object({
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
   "playerUrl": zod.string().nullish(),
   "indexError": zod.string().nullish(),
+  "detectedLanguage": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })
@@ -118,6 +142,7 @@ export const UploadVideoBody = zod.object({
   "recordedAt": zod.string().optional(),
   "location": zod.string().optional(),
   "source": zod.enum(['gallery', 'google_photos', 'youtube']).optional(),
+  "requestedLanguage": zod.string().optional().describe('Optional language code to tell the transcription model what to expect (e.g. \"hi\", \"ta\"). If omitted, the language is auto-detected.'),
   "privacyRequest": zod.string().max(uploadVideoBodyPrivacyRequestMax).optional().describe('Optional free-text request applied to this upload\'s privacy scan — e.g. \"skip anything with my ex\". Matching scenes are flagged for review instead of auto-included.')
 })
 
@@ -134,6 +159,7 @@ export const UploadVideoResponse = zod.object({
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
   "playerUrl": zod.string().nullish(),
   "indexError": zod.string().nullish(),
+  "detectedLanguage": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })
@@ -159,9 +185,73 @@ export const PrivacyScanVideoResponse = zod.object({
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
   "playerUrl": zod.string().nullish(),
   "indexError": zod.string().nullish(),
+  "detectedLanguage": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })
+
+
+/**
+ * Generates a downloadable file for exactly the requested in/out range using VideoDB clip extraction. Nothing is stored server-side; the clip is rendered on demand.
+ * @summary Export a trimmed clip of a video as a downloadable file
+ */
+export const ExportClipParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const exportClipBodyStartSecondsMin = 0;
+
+export const exportClipBodyEndSecondsMin = 0;
+
+
+
+export const ExportClipBody = zod.object({
+  "startSeconds": zod.number().min(exportClipBodyStartSecondsMin),
+  "endSeconds": zod.number().min(exportClipBodyEndSecondsMin)
+})
+
+export const ExportClipResponse = zod.object({
+  "downloadUrl": zod.string().describe('Direct URL to download the rendered clip file.'),
+  "name": zod.string().describe('Suggested filename for the clip.')
+})
+
+
+/**
+ * Used from the review queue when a video was flagged for a likely language-confusion misdetection. Re-runs transcription with the chosen language code and resolves the language review item.
+ * @summary Re-transcribe a video with a user-confirmed language
+ */
+export const ConfirmVideoLanguageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const ConfirmVideoLanguageBody = zod.object({
+  "languageCode": zod.string().min(1).describe('The user-confirmed ISO language code for the video transcript.')
+})
+
+export const ConfirmVideoLanguageResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "durationSeconds": zod.number(),
+  "uploadedAt": zod.string(),
+  "recordedAt": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "status": zod.enum(['indexed', 'processing', 'flagged', 'failed']),
+  "source": zod.enum(['gallery', 'google_photos', 'youtube']),
+  "playerUrl": zod.string().nullish(),
+  "indexError": zod.string().nullish(),
+  "detectedLanguage": zod.string().nullish(),
+  "tags": zod.array(zod.string()),
+  "people": zod.array(zod.string())
+}).and(zod.object({
+  "transcriptExcerpt": zod.string().nullable(),
+  "sceneCount": zod.number().nullish(),
+  "detectedLanguage": zod.string().nullish()
+}))
 
 
 /**
@@ -184,11 +274,13 @@ export const GetVideoResponse = zod.object({
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
   "playerUrl": zod.string().nullish(),
   "indexError": zod.string().nullish(),
+  "detectedLanguage": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 }).and(zod.object({
   "transcriptExcerpt": zod.string().nullable(),
-  "sceneCount": zod.number().nullish()
+  "sceneCount": zod.number().nullish(),
+  "detectedLanguage": zod.string().nullish()
 }))
 
 
@@ -223,6 +315,7 @@ export const UpdateVideoResponse = zod.object({
   "source": zod.enum(['gallery', 'google_photos', 'youtube']),
   "playerUrl": zod.string().nullish(),
   "indexError": zod.string().nullish(),
+  "detectedLanguage": zod.string().nullish(),
   "tags": zod.array(zod.string()),
   "people": zod.array(zod.string())
 })
@@ -239,28 +332,259 @@ export const DeleteVideoResponse = zod.void()
 
 
 /**
+ * Answers "where in THIS video did X happen" — semantic search scoped to one video, falling back to keyword matching over its indexed moments.
+ * @summary AI moment lookup inside a single video
+ */
+export const FindInVideoParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const FindInVideoQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const FindInVideoResponse = zod.object({
+  "found": zod.boolean(),
+  "timestampSeconds": zod.number().nullish(),
+  "snippet": zod.string().nullish(),
+  "matchType": zod.string().nullish()
+})
+
+
+/**
  * @summary Search the video archive by natural language query
  */
 export const SearchMemoriesQueryParams = zod.object({
   "q": zod.coerce.string()
 })
 
-export const SearchMemoriesResponseItem = zod.object({
+export const SearchMemoriesResponse = zod.object({
+  "results": zod.array(zod.object({
   "id": zod.number(),
   "videoId": zod.number(),
   "videoTitle": zod.string(),
   "thumbnailUrl": zod.string(),
   "videoUrl": zod.string().nullish(),
   "snippet": zod.string(),
-  "matchType": zod.enum(['speech', 'scene', 'person']),
+  "matchType": zod.enum(['speech', 'scene', 'person', 'title']),
   "matchReason": zod.string().nullish().describe('One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)'),
   "timestampSeconds": zod.number(),
   "durationSeconds": zod.number(),
   "people": zod.array(zod.string()).optional(),
   "recordedAt": zod.string().nullish(),
   "location": zod.string().nullish()
+})),
+  "personFilter": zod.union([zod.object({
+  "personName": zod.string().describe('Enrolled person detected in the query'),
+  "sceneQuery": zod.string().describe('The scene description actually used for semantic search'),
+  "status": zod.enum(['applied', 'unavailable']).describe('\"applied\" when results were filtered by confirmed face matches; \"unavailable\" when face recognition was unreachable\/misconfigured and scene-only results are shown instead.')
+}),zod.null()]).optional().describe('Present when an enrolled person was detected in the query'),
+  "intent": zod.enum(['search', 'count', 'recency', 'group']).describe('How the query was routed after intent classification'),
+  "answer": zod.union([zod.string(),zod.null()]).optional().describe('Natural-language answer shown above the clips (count\/recency intents)')
 })
-export const SearchMemoriesResponse = zod.array(SearchMemoriesResponseItem)
+
+
+/**
+ * @summary List the user's chats, most recently active first
+ */
+export const ListChatsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListChatsResponse = zod.array(ListChatsResponseItem)
+
+
+/**
+ * @summary Start a new chat thread
+ */
+export const createChatBodyTitleMax = 120;
+
+
+
+export const CreateChatBody = zod.object({
+  "title": zod.string().max(createChatBodyTitleMax).optional()
+})
+
+export const CreateChatResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a chat with its full message history
+ */
+export const GetChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetChatResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "chatId": zod.number(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "createdAt": zod.string(),
+  "voice": zod.boolean().optional().describe('User message originated from voice input'),
+  "personIds": zod.array(zod.number()).optional().describe('Explicit person mentions attached to a user message'),
+  "personNames": zod.array(zod.string()).optional().describe('Names for the personIds at send time (for display)'),
+  "results": zod.array(zod.object({
+  "id": zod.number(),
+  "videoId": zod.number(),
+  "videoTitle": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "snippet": zod.string(),
+  "matchType": zod.enum(['speech', 'scene', 'person', 'title']),
+  "matchReason": zod.string().nullish().describe('One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)'),
+  "timestampSeconds": zod.number(),
+  "durationSeconds": zod.number(),
+  "people": zod.array(zod.string()).optional(),
+  "recordedAt": zod.string().nullish(),
+  "location": zod.string().nullish()
+})).optional().describe('Clip results backing an assistant reply'),
+  "personFilter": zod.union([zod.object({
+  "personName": zod.string().describe('Enrolled person detected in the query'),
+  "sceneQuery": zod.string().describe('The scene description actually used for semantic search'),
+  "status": zod.enum(['applied', 'unavailable']).describe('\"applied\" when results were filtered by confirmed face matches; \"unavailable\" when face recognition was unreachable\/misconfigured and scene-only results are shown instead.')
+}),zod.null()]).optional(),
+  "intent": zod.enum(['search', 'count', 'recency', 'group']).optional(),
+  "answer": zod.string().nullish(),
+  "failed": zod.boolean().optional().describe('Assistant turn ended in an error; content holds the message')
+}))
+}))
+
+
+/**
+ * @summary Rename a chat
+ */
+export const UpdateChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateChatBodyTitleMax = 120;
+
+
+
+export const UpdateChatBody = zod.object({
+  "title": zod.string().min(1).max(updateChatBodyTitleMax)
+})
+
+export const UpdateChatResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a chat and its messages
+ */
+export const DeleteChatParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteChatResponse = zod.void()
+
+
+/**
+ * Runs the full search pipeline (context rewrite, intent classification, retrieval, person confirmation, reranking, answering) against the user's archive. With the default JSON Accept header the response is the completed turn. When the request's Accept header includes text/event-stream, the server streams Server-Sent Events instead: `stage` events ({"stage": "..."}) as each pipeline phase starts, then one final `result` event whose data is the same ChatTurn JSON, or an `error` event ({"error": "..."}).
+ * @summary Send a message and get the assistant's researched reply
+ */
+export const SendChatMessageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const sendChatMessageBodyContentMax = 2000;
+
+export const sendChatMessageBodyPersonIdsMax = 5;
+
+
+
+export const SendChatMessageBody = zod.object({
+  "content": zod.string().max(sendChatMessageBodyContentMax).describe('May be empty only when personIds are provided'),
+  "personIds": zod.array(zod.number()).max(sendChatMessageBodyPersonIdsMax).optional().describe('Enrolled person ids mentioned via \"\/\" pills; multiple ids must ALL appear (AND)'),
+  "voice": zod.boolean().optional().describe('Message text came from voice transcription')
+})
+
+export const SendChatMessageResponse = zod.object({
+  "userMessage": zod.object({
+  "id": zod.number(),
+  "chatId": zod.number(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "createdAt": zod.string(),
+  "voice": zod.boolean().optional().describe('User message originated from voice input'),
+  "personIds": zod.array(zod.number()).optional().describe('Explicit person mentions attached to a user message'),
+  "personNames": zod.array(zod.string()).optional().describe('Names for the personIds at send time (for display)'),
+  "results": zod.array(zod.object({
+  "id": zod.number(),
+  "videoId": zod.number(),
+  "videoTitle": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "snippet": zod.string(),
+  "matchType": zod.enum(['speech', 'scene', 'person', 'title']),
+  "matchReason": zod.string().nullish().describe('One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)'),
+  "timestampSeconds": zod.number(),
+  "durationSeconds": zod.number(),
+  "people": zod.array(zod.string()).optional(),
+  "recordedAt": zod.string().nullish(),
+  "location": zod.string().nullish()
+})).optional().describe('Clip results backing an assistant reply'),
+  "personFilter": zod.union([zod.object({
+  "personName": zod.string().describe('Enrolled person detected in the query'),
+  "sceneQuery": zod.string().describe('The scene description actually used for semantic search'),
+  "status": zod.enum(['applied', 'unavailable']).describe('\"applied\" when results were filtered by confirmed face matches; \"unavailable\" when face recognition was unreachable\/misconfigured and scene-only results are shown instead.')
+}),zod.null()]).optional(),
+  "intent": zod.enum(['search', 'count', 'recency', 'group']).optional(),
+  "answer": zod.string().nullish(),
+  "failed": zod.boolean().optional().describe('Assistant turn ended in an error; content holds the message')
+}),
+  "assistantMessage": zod.object({
+  "id": zod.number(),
+  "chatId": zod.number(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "createdAt": zod.string(),
+  "voice": zod.boolean().optional().describe('User message originated from voice input'),
+  "personIds": zod.array(zod.number()).optional().describe('Explicit person mentions attached to a user message'),
+  "personNames": zod.array(zod.string()).optional().describe('Names for the personIds at send time (for display)'),
+  "results": zod.array(zod.object({
+  "id": zod.number(),
+  "videoId": zod.number(),
+  "videoTitle": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "videoUrl": zod.string().nullish(),
+  "snippet": zod.string(),
+  "matchType": zod.enum(['speech', 'scene', 'person', 'title']),
+  "matchReason": zod.string().nullish().describe('One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)'),
+  "timestampSeconds": zod.number(),
+  "durationSeconds": zod.number(),
+  "people": zod.array(zod.string()).optional(),
+  "recordedAt": zod.string().nullish(),
+  "location": zod.string().nullish()
+})).optional().describe('Clip results backing an assistant reply'),
+  "personFilter": zod.union([zod.object({
+  "personName": zod.string().describe('Enrolled person detected in the query'),
+  "sceneQuery": zod.string().describe('The scene description actually used for semantic search'),
+  "status": zod.enum(['applied', 'unavailable']).describe('\"applied\" when results were filtered by confirmed face matches; \"unavailable\" when face recognition was unreachable\/misconfigured and scene-only results are shown instead.')
+}),zod.null()]).optional(),
+  "intent": zod.enum(['search', 'count', 'recency', 'group']).optional(),
+  "answer": zod.string().nullish(),
+  "failed": zod.boolean().optional().describe('Assistant turn ended in an error; content holds the message')
+})
+})
 
 
 /**
@@ -401,6 +725,72 @@ export const ListPeopleResponse = zod.array(ListPeopleResponseItem)
 
 
 /**
+ * @summary List people enrolled for face-based person search
+ */
+export const ListEnrolledPeopleResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "thumbnailUrl": zod.string().describe('Data-URL copy of the reference photo for display'),
+  "createdAt": zod.string()
+})
+export const ListEnrolledPeopleResponse = zod.array(ListEnrolledPeopleResponseItem)
+
+
+/**
+ * Indexes the largest face in the reference photo into the AWS Rekognition face collection and stores the returned FaceId under the given name.
+ * @summary Enroll a person for face-based search from a reference photo
+ */
+export const enrollPersonBodyNameMax = 80;
+
+
+
+export const EnrollPersonBody = zod.object({
+  "name": zod.string().min(1).max(enrollPersonBodyNameMax),
+  "photo": zod.instanceof(File).describe('Reference photo (JPEG\/PNG) with one clear face')
+})
+
+export const EnrollPersonResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "thumbnailUrl": zod.string().describe('Data-URL copy of the reference photo for display'),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Rename an enrolled person
+ */
+export const UpdateEnrolledPersonParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateEnrolledPersonBodyNameMax = 80;
+
+
+
+export const UpdateEnrolledPersonBody = zod.object({
+  "name": zod.string().min(1).max(updateEnrolledPersonBodyNameMax)
+})
+
+export const UpdateEnrolledPersonResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "thumbnailUrl": zod.string().describe('Data-URL copy of the reference photo for display'),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Remove an enrolled person (and their face from the collection)
+ */
+export const DeleteEnrolledPersonParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteEnrolledPersonResponse = zod.void()
+
+
+/**
  * @summary Library summary stats for the dashboard
  */
 export const GetStatsResponse = zod.object({
@@ -409,6 +799,43 @@ export const GetStatsResponse = zod.object({
   "totalPeople": zod.number(),
   "totalScenes": zod.number(),
   "pendingReviewCount": zod.number()
+})
+
+
+/**
+ * @summary Whether voice features (ElevenLabs) are configured
+ */
+export const GetVoiceStatusResponse = zod.object({
+  "configured": zod.boolean()
+})
+
+
+/**
+ * @summary Transcribe a recorded voice query to text
+ */
+export const TranscribeVoiceBody = zod.object({
+  "audio": zod.instanceof(File).describe('Recorded audio (webm\/ogg\/mp4\/wav), max ~15MB')
+})
+
+export const TranscribeVoiceResponse = zod.object({
+  "text": zod.string()
+})
+
+
+/**
+ * @summary Speak an assistant answer aloud
+ */
+export const synthesizeSpeechBodyTextMax = 1200;
+
+
+
+export const SynthesizeSpeechBody = zod.object({
+  "text": zod.string().min(1).max(synthesizeSpeechBodyTextMax)
+})
+
+export const SynthesizeSpeechResponse = zod.object({
+  "audioBase64": zod.string().describe('Base64-encoded MP3 audio of the spoken answer'),
+  "mimeType": zod.string()
 })
 
 

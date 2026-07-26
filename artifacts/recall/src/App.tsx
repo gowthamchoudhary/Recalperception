@@ -3,8 +3,11 @@ import { Route, Switch, Router as WouterRouter, Link, Redirect } from 'wouter';
 import type { ReactNode } from 'react';
 import Home from './pages/home';
 import Login from './pages/login';
-import Dashboard from './pages/dashboard';
-import Search from './pages/search';
+import ChatHome from './pages/chat-home';
+import ChatPage from './pages/chat';
+import LibraryPage from './pages/library';
+import ReviewPage from './pages/review';
+import People from './pages/people';
 import { useCurrentUser } from './lib/auth';
 
 const queryClient = new QueryClient();
@@ -44,8 +47,13 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/dashboard">{() => <Protected><Dashboard /></Protected>}</Route>
-      <Route path="/search">{() => <Protected><Search /></Protected>}</Route>
+      <Route path="/dashboard">{() => <Protected><ChatHome /></Protected>}</Route>
+      <Route path="/chat/:id">{() => <Protected><ChatPage /></Protected>}</Route>
+      <Route path="/library">{() => <Protected><LibraryPage /></Protected>}</Route>
+      <Route path="/review">{() => <Protected><ReviewPage /></Protected>}</Route>
+      {/* The old standalone search page now lives in chat. */}
+      <Route path="/search">{() => <Redirect to="/dashboard" />}</Route>
+      <Route path="/people">{() => <Protected><People /></Protected>}</Route>
       <Route component={NotFound} />
     </Switch>
   );

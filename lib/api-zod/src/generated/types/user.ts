@@ -11,4 +11,5 @@ export interface User {
   email: string;
   name: string;
   createdAt: string;
+  languageProfile: string[];
 }

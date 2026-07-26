@@ -1,0 +1,26 @@
+1. Timeline trim + export — turns a search result into something usable
+
+Prompt:
+
+Add clip trimming and export to the video result player.
+
+In the player modal, add a timeline scrubber spanning the full video, with the matched segment highlighted. Add two draggable handles (in-point/out-point) the user can adjust to select any custom range, not just the matched segment.
+Add an "Export clip" button that uses VideoDB's clip extraction to generate a downloadable file for exactly the selected in/out range — not the whole video.
+Show export progress, then a real download link/button once ready.
+For short videos (under ~30s), skip the scrubber — export defaults to the whole clip, one-click download.
+Store nothing extra server-side long-term for exports — generate on demand, don't pre-render every possible clip.
+2. Collaborative spaces — the bigger differentiator
+
+This is the one worth spending real time on, since it changes the pitch from "my personal tool" to "a shared memory archive for people who matter to me" — genuinely distinct from every other "search my footage" submission.
+
+Prompt:
+
+Add collaborative spaces on top of the existing personal library.
+
+Data model: spaces (id, name, owner_id), space_members (space_id, user_id, role), invites (space_id, invited_by, email/code, status). Every video gets a space_id — on migration, all existing videos move into an auto-created personal space per user.
+Create/join flow: user can create a named space, invite others by email or shareable link. Invited users joining an existing account become members.
+Scoped everything: uploading, browsing, and searching all happen within a selected space (a simple space switcher in the nav). Search only queries that space's videos, not across all of a user's spaces at once.
+Review permissions for shared spaces: flagged content is visible to the uploader AND the space owner (not just the uploader, since shared spaces need shared accountability) — reuse the permission logic from the space-policy design we already spec'd.
+Space-level custom privacy policy (already speced earlier) — owner can add disallowed categories specific to that space, combined with baseline categories during the scan.
+
+Build data model + create/invite/switch-space UI first; wire scoping into upload/search/review after that's confirmed working.

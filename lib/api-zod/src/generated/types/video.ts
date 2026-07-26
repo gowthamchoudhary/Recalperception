@@ -26,6 +26,8 @@ export interface Video {
   playerUrl?: string | null;
   /** @nullable */
   indexError?: string | null;
+  /** @nullable */
+  detectedLanguage?: string | null;
   tags: string[];
   people: string[];
 }

@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.1095.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "connect-pg-simple": "^10.0.0",

@@ -22,6 +22,10 @@ tags:
     description: Tagged people operations
   - name: stats
     description: Dashboard summary
+  - name: chats
+    description: Dashboard chat threads
+  - name: voice
+    description: Voice input (speech-to-text) and spoken answers (text-to-speech)
 paths:
   /healthz:
     get:
@@ -116,6 +120,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+    patch:
+      operationId: updateCurrentUser
+      tags: [auth]
+      summary: Update the current user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "401":
+          description: Not logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /videos:
     get:
       operationId: listVideos
@@ -203,6 +236,110 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /videos/{id}/export-clip:
+    post:
+      operationId: exportClip
+      tags: [videos]
+      summary: Export a trimmed clip of a video as a downloadable file
+      description: >-
+        Generates a downloadable file for exactly the requested in/out range
+        using VideoDB clip extraction. Nothing is stored server-side; the
+        clip is rendered on demand.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClipExportInput"
+      responses:
+        "200":
+          description: Clip rendered; download URL ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClipExport"
+        "400":
+          description: Invalid range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: Video is not ready for export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "502":
+          description: Clip rendering failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: VideoDB not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /videos/{id}/confirm-language:
+    post:
+      operationId: confirmVideoLanguage
+      tags: [videos]
+      summary: Re-transcribe a video with a user-confirmed language
+      description: >-
+        Used from the review queue when a video was flagged for a likely
+        language-confusion misdetection. Re-runs transcription with the
+        chosen language code and resolves the language review item.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmLanguageBody"
+      responses:
+        "200":
+          description: Transcript regenerated and review item resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoDetail"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: VideoDB not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /videos/{id}:
     get:
       operationId: getVideo
@@ -275,6 +412,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /videos/{id}/find:
+    get:
+      operationId: findInVideo
+      tags: [videos]
+      summary: AI moment lookup inside a single video
+      description: >-
+        Answers "where in THIS video did X happen" — semantic search scoped to
+        one video, falling back to keyword matching over its indexed moments.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Best matching moment, if any
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindInVideoResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /search:
     get:
       operationId: searchMemories
@@ -292,9 +461,155 @@ paths:
           content:
             application/json:
               schema:
+                $ref: "#/components/schemas/SearchResponse"
+  /chats:
+    get:
+      operationId: listChats
+      tags: [chats]
+      summary: List the user's chats, most recently active first
+      responses:
+        "200":
+          description: Chats
+          content:
+            application/json:
+              schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SearchResult"
+                  $ref: "#/components/schemas/Chat"
+    post:
+      operationId: createChat
+      tags: [chats]
+      summary: Start a new chat thread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chat"
+  /chats/{id}:
+    get:
+      operationId: getChat
+      tags: [chats]
+      summary: Get a chat with its full message history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Chat detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    patch:
+      operationId: updateChat
+      tags: [chats]
+      summary: Rename a chat
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chat"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteChat
+      tags: [chats]
+      summary: Delete a chat and its messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /chats/{id}/messages:
+    post:
+      operationId: sendChatMessage
+      tags: [chats]
+      summary: Send a message and get the assistant's researched reply
+      description: >-
+        Runs the full search pipeline (context rewrite, intent classification,
+        retrieval, person confirmation, reranking, answering) against the
+        user's archive. With the default JSON Accept header the response is
+        the completed turn. When the request's Accept header includes
+        text/event-stream, the server streams Server-Sent Events instead:
+        `stage` events ({"stage": "..."}) as each pipeline phase starts,
+        then one final `result` event whose data is the same ChatTurn JSON,
+        or an `error` event ({"error": "..."}).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "200":
+          description: Completed turn (user message + assistant reply)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatTurn"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Search backend not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /sources/status:
     get:
       operationId: getSourcesStatus
@@ -477,6 +792,108 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Person"
+  /people/enrolled:
+    get:
+      operationId: listEnrolledPeople
+      tags: [people]
+      summary: List people enrolled for face-based person search
+      responses:
+        "200":
+          description: Enrolled people
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EnrolledPerson"
+    post:
+      operationId: enrollPerson
+      tags: [people]
+      summary: Enroll a person for face-based search from a reference photo
+      description: >-
+        Indexes the largest face in the reference photo into the AWS
+        Rekognition face collection and stores the returned FaceId under the
+        given name.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/EnrollPersonInput"
+      responses:
+        "201":
+          description: Person enrolled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolledPerson"
+        "400":
+          description: Unusable photo (no clear face) or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "502":
+          description: Face indexing failed upstream
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "503":
+          description: Face recognition is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /people/enrolled/{id}:
+    patch:
+      operationId: updateEnrolledPerson
+      tags: [people]
+      summary: Rename an enrolled person
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrolledPersonUpdate"
+      responses:
+        "200":
+          description: Updated person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolledPerson"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    delete:
+      operationId: deleteEnrolledPerson
+      tags: [people]
+      summary: Remove an enrolled person (and their face from the collection)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /stats:
     get:
       operationId: getStats
@@ -489,6 +906,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LibraryStats"
+  /voice/status:
+    get:
+      operationId: getVoiceStatus
+      tags: [voice]
+      summary: Whether voice features (ElevenLabs) are configured
+      responses:
+        "200":
+          description: Voice availability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceStatus"
+  /voice/transcribe:
+    post:
+      operationId: transcribeVoice
+      tags: [voice]
+      summary: Transcribe a recorded voice query to text
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/VoiceTranscribeInput"
+      responses:
+        "200":
+          description: Transcription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscriptionResult"
+        "503":
+          description: Voice not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /voice/tts:
+    post:
+      operationId: synthesizeSpeech
+      tags: [voice]
+      summary: Speak an assistant answer aloud
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TtsInput"
+      responses:
+        "200":
+          description: MP3 audio, base64-encoded for easy playback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TtsResult"
+        "503":
+          description: Voice not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
 components:
   schemas:
     HealthStatus:
@@ -521,6 +998,7 @@ components:
         source: { type: string, enum: [gallery, google_photos, youtube] }
         playerUrl: { type: ["string", "null"] }
         indexError: { type: ["string", "null"] }
+        detectedLanguage: { type: ["string", "null"] }
         tags:
           type: array
           items: { type: string }
@@ -535,14 +1013,26 @@ components:
           properties:
             transcriptExcerpt: { type: ["string", "null"] }
             sceneCount: { type: ["integer", "null"] }
+            detectedLanguage: { type: ["string", "null"] }
     User:
       type: object
-      required: [id, email, name, createdAt]
+      required: [id, email, name, createdAt, languageProfile]
       properties:
         id: { type: integer }
         email: { type: string }
         name: { type: string }
         createdAt: { type: string }
+        languageProfile:
+          type: array
+          items: { type: string }
+    UserUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        languageProfile:
+          type: array
+          items: { type: string }
+          description: Languages the user regularly films in, used to flag likely transcription misdetections.
     SignupInput:
       type: object
       required: [email, password, name]
@@ -572,6 +1062,11 @@ components:
         recordedAt: { type: string }
         location: { type: string }
         source: { type: string, enum: [gallery, google_photos, youtube] }
+        requestedLanguage:
+          type: string
+          description: >-
+            Optional language code to tell the transcription model what to
+            expect (e.g. "hi", "ta"). If omitted, the language is auto-detected.
         privacyRequest:
           type: string
           maxLength: 500
@@ -591,6 +1086,34 @@ components:
         people:
           type: array
           items: { type: string }
+    ClipExportInput:
+      type: object
+      required: [startSeconds, endSeconds]
+      properties:
+        startSeconds:
+          type: number
+          minimum: 0
+        endSeconds:
+          type: number
+          minimum: 0
+    ClipExport:
+      type: object
+      required: [downloadUrl, name]
+      properties:
+        downloadUrl:
+          type: string
+          description: Direct URL to download the rendered clip file.
+        name:
+          type: string
+          description: Suggested filename for the clip.
+    ConfirmLanguageBody:
+      type: object
+      required: [languageCode]
+      properties:
+        languageCode:
+          type: string
+          minLength: 1
+          description: The user-confirmed ISO language code for the video transcript.
     SearchResult:
       type: object
       required: [id, videoId, videoTitle, thumbnailUrl, snippet, matchType, timestampSeconds, durationSeconds]
@@ -601,7 +1124,7 @@ components:
         thumbnailUrl: { type: string }
         videoUrl: { type: ["string", "null"] }
         snippet: { type: string }
-        matchType: { type: string, enum: [speech, scene, person] }
+        matchType: { type: string, enum: [speech, scene, person, title] }
         matchReason:
           type: ["string", "null"]
           description: One-sentence LLM explanation of why this result matches the query (null when reranking was unavailable)
@@ -682,6 +1205,75 @@ components:
         name: { type: string }
         appearanceCount: { type: integer }
         lastSeenAt: { type: ["string", "null"] }
+    EnrolledPerson:
+      type: object
+      required: [id, name, thumbnailUrl, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        thumbnailUrl:
+          type: string
+          description: Data-URL copy of the reference photo for display
+        createdAt: { type: string }
+    EnrollPersonInput:
+      type: object
+      required: [name, photo]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        photo:
+          type: string
+          format: binary
+          description: Reference photo (JPEG/PNG) with one clear face
+    EnrolledPersonUpdate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+    PersonFilter:
+      type: object
+      required: [personName, sceneQuery, status]
+      properties:
+        personName:
+          type: string
+          description: Enrolled person detected in the query
+        sceneQuery:
+          type: string
+          description: The scene description actually used for semantic search
+        status:
+          type: string
+          enum: [applied, unavailable]
+          description: >-
+            "applied" when results were filtered by confirmed face matches;
+            "unavailable" when face recognition was unreachable/misconfigured
+            and scene-only results are shown instead.
+    SearchResponse:
+      type: object
+      required: [results, intent]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        personFilter:
+          oneOf:
+            - $ref: "#/components/schemas/PersonFilter"
+            - type: "null"
+          description: Present when an enrolled person was detected in the query
+        intent:
+          type: string
+          enum: [search, count, recency, group]
+          description: How the query was routed after intent classification
+        answer:
+          oneOf:
+            - type: string
+            - type: "null"
+          description: Natural-language answer shown above the clips (count/recency intents)
     LibraryStats:
       type: object
       required: [totalVideos, totalHoursIndexed, totalPeople, totalScenes, pendingReviewCount]
@@ -691,3 +1283,138 @@ components:
         totalPeople: { type: integer }
         totalScenes: { type: integer }
         pendingReviewCount: { type: integer }
+    Chat:
+      type: object
+      required: [id, title, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    ChatDetail:
+      allOf:
+        - $ref: "#/components/schemas/Chat"
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChatMessage"
+    ChatMessage:
+      type: object
+      required: [id, chatId, role, content, createdAt]
+      properties:
+        id: { type: integer }
+        chatId: { type: integer }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        createdAt: { type: string }
+        voice:
+          type: boolean
+          description: User message originated from voice input
+        personIds:
+          type: array
+          items: { type: integer }
+          description: Explicit person mentions attached to a user message
+        personNames:
+          type: array
+          items: { type: string }
+          description: Names for the personIds at send time (for display)
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+          description: Clip results backing an assistant reply
+        personFilter:
+          oneOf:
+            - $ref: "#/components/schemas/PersonFilter"
+            - type: "null"
+        intent:
+          type: string
+          enum: [search, count, recency, group]
+        answer:
+          type: ["string", "null"]
+        failed:
+          type: boolean
+          description: Assistant turn ended in an error; content holds the message
+    ChatInput:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 120
+    ChatUpdate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+    ChatMessageInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 2000
+          description: May be empty only when personIds are provided
+        personIds:
+          type: array
+          items: { type: integer }
+          maxItems: 5
+          description: Enrolled person ids mentioned via "/" pills; multiple ids must ALL appear (AND)
+        voice:
+          type: boolean
+          description: Message text came from voice transcription
+    ChatTurn:
+      type: object
+      required: [userMessage, assistantMessage]
+      properties:
+        userMessage:
+          $ref: "#/components/schemas/ChatMessage"
+        assistantMessage:
+          $ref: "#/components/schemas/ChatMessage"
+    FindInVideoResult:
+      type: object
+      required: [found]
+      properties:
+        found: { type: boolean }
+        timestampSeconds: { type: ["integer", "null"] }
+        snippet: { type: ["string", "null"] }
+        matchType: { type: ["string", "null"] }
+    VoiceStatus:
+      type: object
+      required: [configured]
+      properties:
+        configured: { type: boolean }
+    VoiceTranscribeInput:
+      type: object
+      required: [audio]
+      properties:
+        audio:
+          type: string
+          format: binary
+          description: Recorded audio (webm/ogg/mp4/wav), max ~15MB
+    TranscriptionResult:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+    TtsInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1200
+    TtsResult:
+      type: object
+      required: [audioBase64, mimeType]
+      properties:
+        audioBase64:
+          type: string
+          description: Base64-encoded MP3 audio of the spoken answer
+        mimeType: { type: string }

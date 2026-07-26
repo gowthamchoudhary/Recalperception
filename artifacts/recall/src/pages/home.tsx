@@ -330,29 +330,29 @@ export default function Home() {
           <Annotation
             label={`Scene extracted · "${DEMO.videos[0].scene}"`}
             top={150}
-            left={180}
+            left={210}
             lineTop={170}
-            lineLeft={155}
-            lineWidth={38}
+            lineLeft={150}
+            lineWidth={60}
             rotate={18}
           />
           <Annotation
             label={`Scene extracted · "${DEMO.videos[1].scene}"`}
             top={330}
-            left={230}
-            lineTop={330}
-            lineLeft={185}
-            lineWidth={56}
+            left={240}
+            lineTop={335}
+            lineLeft={165}
+            lineWidth={75}
             rotate={-8}
             color="#3b82f6"
           />
           <Annotation
             label={`Scene extracted · "${DEMO.videos[2].scene}"`}
             top={480}
-            left={30}
+            left={215}
             lineTop={470}
-            lineLeft={110}
-            lineWidth={40}
+            lineLeft={150}
+            lineWidth={65}
             rotate={-18}
             color="#a855f7"
           />

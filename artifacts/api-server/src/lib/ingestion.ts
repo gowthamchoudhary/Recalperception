@@ -1,6 +1,6 @@
 import { unlink } from "node:fs/promises";
-import { and, eq, lt } from "drizzle-orm";
-import { db, videosTable, reviewItemsTable } from "@workspace/db";
+import { and, eq, lt, like, not } from "drizzle-orm";
+import { db, videosTable, reviewItemsTable, usersTable } from "@workspace/db";
 import { Video as VideoDBVideo } from "videodb";
 import { logger } from "./logger";
 import {
@@ -8,6 +8,11 @@ import {
   isVideoDBNotFoundError,
   withTimeout,
 } from "./videodb";
+import {
+  detectTranscriptLanguage,
+  displayName,
+  findLanguageConfusion,
+} from "./languageConfusion";
 
 export type UploadSource =
   | { kind: "url"; url: string }
@@ -271,8 +276,20 @@ export async function applyScanResults(
     );
   } else {
     await db.transaction(async (tx) => {
+      // Privacy scan owns its own review items; never delete language-confusion
+      // items, which are handled by the language confirmation flow.
       await tx
         .delete(reviewItemsTable)
+        .where(
+          and(
+            eq(reviewItemsTable.videoId, videoRowId),
+            eq(reviewItemsTable.status, "pending"),
+            not(like(reviewItemsTable.reason, "Language confusion:%")),
+          ),
+        );
+      const stillPending = await tx
+        .select({ id: reviewItemsTable.id })
+        .from(reviewItemsTable)
         .where(
           and(
             eq(reviewItemsTable.videoId, videoRowId),
@@ -281,11 +298,130 @@ export async function applyScanResults(
         );
       await tx
         .update(videosTable)
-        .set({ status: "indexed", indexError: null })
+        .set({
+          status: stillPending.length > 0 ? "flagged" : "indexed",
+          indexError: null,
+        })
         .where(eq(videosTable.id, videoRowId));
     });
     logger.info({ videoRowId }, "Privacy scan clean; video indexed");
   }
+}
+
+const LANGUAGE_CONFUSION_REASON_PREFIX = "Language confusion:";
+
+/**
+ * Checks whether the resolved transcript language is likely a misdetection for
+ * this user. If so, creates a review item with language-candidate metadata and
+ * quarantines the video until the user confirms the correct language.
+ */
+async function checkLanguageConfusion(
+  videoRowId: number,
+  detectedLanguage: string,
+): Promise<ReturnType<typeof findLanguageConfusion>> {
+  const [video] = await db
+    .select({ userId: videosTable.userId })
+    .from(videosTable)
+    .where(eq(videosTable.id, videoRowId));
+  if (!video?.userId) return null;
+
+  const [user] = await db
+    .select({ languageProfile: usersTable.languageProfile })
+    .from(usersTable)
+    .where(eq(usersTable.id, video.userId));
+  if (!user?.languageProfile?.length) return null;
+
+  const confusion = findLanguageConfusion(detectedLanguage, user.languageProfile);
+  if (!confusion) return null;
+
+  const otherNames = confusion.candidates
+    .filter((c) => c.toLowerCase() !== confusion.detected.toLowerCase())
+    .map(displayName)
+    .join(", ");
+  const message = `Detected as ${displayName(confusion.detected)} — this is often confused with ${otherNames}. Which is correct?`;
+
+  await db.transaction(async (tx) => {
+    await tx.insert(reviewItemsTable).values({
+      videoId: videoRowId,
+      reason: `${LANGUAGE_CONFUSION_REASON_PREFIX} ${confusion.clusterId}`,
+      detail: JSON.stringify({
+        type: "language-confusion",
+        detected: confusion.detected,
+        candidates: confusion.candidates,
+        message,
+      }),
+      status: "pending",
+    });
+    await tx
+      .update(videosTable)
+      .set({ status: "flagged" })
+      .where(eq(videosTable.id, videoRowId));
+  });
+
+  return confusion;
+}
+
+/**
+ * Re-runs transcription with a user-confirmed language code, then updates the
+ * stored transcript excerpt and detected language. Does not resolve the review
+ * item — the caller handles that after a successful regeneration.
+ */
+export async function regenerateTranscript(
+  videoRowId: number,
+  languageCode: string,
+): Promise<{ transcriptExcerpt: string | null }> {
+  const [video] = await db
+    .select()
+    .from(videosTable)
+    .where(eq(videosTable.id, videoRowId));
+  if (!video) throw new Error("Video not found");
+  if (!video.videodbVideoId) {
+    throw new Error("This video has no VideoDB asset; upload it again instead.");
+  }
+
+  const coll = await getVideoDBCollection();
+  const media = await withTimeout(
+    coll.getVideo(video.videodbVideoId),
+    60_000,
+    "VideoDB video fetch",
+  );
+
+  await withTimeout(
+    media.generateTranscript(true, languageCode),
+    2 * 60_000,
+    "Transcript regeneration",
+  );
+
+  let text = "";
+  const maxAttempts = 30;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await sleep(5_000);
+    const result = await withTimeout(
+      media.getTranscriptText(),
+      60_000,
+      "Transcript fetch",
+    );
+    if (typeof result === "string" && result.trim().length > 0) {
+      text = result;
+      break;
+    }
+  }
+
+  if (!text.trim()) {
+    throw new Error("Could not retrieve a transcript after regeneration.");
+  }
+
+  const transcriptExcerpt = excerpt(text);
+  await db
+    .update(videosTable)
+    .set({
+      transcriptExcerpt,
+      hasTranscript: true,
+      detectedLanguage: languageCode,
+    })
+    .where(eq(videosTable.id, videoRowId));
+
+  return { transcriptExcerpt };
 }
 
 function excerpt(text: string, max = 280): string {
@@ -501,6 +637,7 @@ async function indexAndScan(
   }
   if (await stopIfCancelled(videoRowId, media)) return;
 
+  let detectedLanguage: string | null = null;
   if (hasSpeech) {
     logger.info({ videoRowId }, "Spoken-word indexing complete");
     try {
@@ -510,9 +647,19 @@ async function indexAndScan(
         "Transcript fetch",
       );
       if (typeof text === "string" && text.trim().length > 0) {
+        const [video] = await db
+          .select({ requestedLanguage: videosTable.requestedLanguage })
+          .from(videosTable)
+          .where(eq(videosTable.id, videoRowId));
+        detectedLanguage =
+          video?.requestedLanguage?.trim() || detectTranscriptLanguage(text) || null;
         await db
           .update(videosTable)
-          .set({ transcriptExcerpt: excerpt(text), hasTranscript: true })
+          .set({
+            transcriptExcerpt: excerpt(text),
+            hasTranscript: true,
+            detectedLanguage,
+          })
           .where(eq(videosTable.id, videoRowId));
       }
     } catch (err) {
@@ -525,8 +672,20 @@ async function indexAndScan(
     );
     await db
       .update(videosTable)
-      .set({ hasTranscript: false, transcriptExcerpt: null })
+      .set({ hasTranscript: false, transcriptExcerpt: null, detectedLanguage: null })
       .where(eq(videosTable.id, videoRowId));
+  }
+
+  if (detectedLanguage) {
+    const confusion = await checkLanguageConfusion(videoRowId, detectedLanguage);
+    if (confusion) {
+      logger.info(
+        { videoRowId, detectedLanguage, clusterId: confusion.clusterId },
+        "Language confusion flagged for review",
+      );
+      await runPrivacyScan(videoRowId);
+      return;
+    }
   }
 
   await runPrivacyScan(videoRowId);

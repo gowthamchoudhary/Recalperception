@@ -36,6 +36,10 @@ export const videosTable = pgTable("videos", {
   // Free-text "don't process this" request captured at upload time; folded
   // into every privacy scan for this video (including manual rescans).
   privacyRequest: text("privacy_request"),
+  // Language the user explicitly asked indexing to assume (optional).
+  requestedLanguage: text("requested_language"),
+  // Language we resolved from the transcript (auto-detected or requested).
+  detectedLanguage: text("detected_language"),
   // False when spoken-word indexing found no speech (silent clips, screen
   // recordings, music-only). Internal flag — absence of speech is normal.
   hasTranscript: boolean("has_transcript").notNull().default(true),

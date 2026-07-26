@@ -3,7 +3,7 @@ import path from "node:path";
 import { unlink } from "node:fs/promises";
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { and, eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { db, videosTable, momentsTable, reviewItemsTable } from "@workspace/db";
 import {
   ListVideosQueryParams,
@@ -17,7 +17,17 @@ import {
   UploadVideoResponse,
   PrivacyScanVideoParams,
   PrivacyScanVideoResponse,
+  ConfirmVideoLanguageParams,
+  ConfirmVideoLanguageBody,
+  ConfirmVideoLanguageResponse,
+  ExportClipParams,
+  ExportClipBody,
+  ExportClipResponse,
+  FindInVideoParams,
+  FindInVideoQueryParams,
+  FindInVideoResponse,
 } from "@workspace/api-zod";
+import { SearchResult, SearchTypeValues, IndexTypeValues } from "videodb";
 import type { VideoRow } from "@workspace/db";
 import { logger } from "../lib/logger";
 import {
@@ -30,6 +40,8 @@ import {
   runIngestion,
   runPrivacyScan,
   isScanInProgress,
+  regenerateTranscript,
+  USER_MATCH_SENTINEL,
 } from "../lib/ingestion";
 import { currentUserId } from "../lib/auth";
 
@@ -56,6 +68,7 @@ export function toApiVideo(v: VideoRow) {
     people: v.people,
     playerUrl: v.playerUrl,
     indexError: v.indexError,
+    detectedLanguage: v.detectedLanguage,
   };
 }
 
@@ -202,6 +215,10 @@ router.post(
       typeof body["privacyRequest"] === "string" ? body["privacyRequest"] : "";
     const privacyRequest =
       privacyRequestRaw.replace(/\s+/g, " ").trim().slice(0, 500) || null;
+    const requestedLanguage =
+      typeof body["requestedLanguage"] === "string" && body["requestedLanguage"]
+        ? body["requestedLanguage"].trim().toLowerCase()
+        : null;
 
     const bodySource = body["source"];
     const source =
@@ -236,6 +253,7 @@ router.post(
           tags: [],
           people: [],
           privacyRequest,
+          requestedLanguage,
         })
         .returning();
       video = inserted[0]!;
@@ -304,6 +322,199 @@ router.post("/videos/:id/privacy-scan", async (req, res): Promise<void> => {
     logger.error({ err, videoId: video.id }, "Privacy scan crashed");
   });
   res.status(202).json(PrivacyScanVideoResponse.parse(toApiVideo(video)));
+});
+
+/**
+ * Renders a downloadable clip for an exact in/out range via VideoDB.
+ * Nothing is persisted server-side: the trimmed stream and its download are
+ * generated on demand each time.
+ */
+router.post("/videos/:id/export-clip", async (req, res): Promise<void> => {
+  const params = ExportClipParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const body = ExportClipBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const start = Math.max(0, body.data.startSeconds);
+  const end = body.data.endSeconds;
+  if (!isVideoDBConfigured()) {
+    res.status(503).json({
+      error:
+        "VideoDB is not configured. Add the VIDEODB_API_KEY secret, then try again.",
+    });
+    return;
+  }
+
+  const [video] = await db
+    .select()
+    .from(videosTable)
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
+  if (!video) {
+    res.status(404).json({ error: "Video not found" });
+    return;
+  }
+  if (!video.videodbVideoId) {
+    res.status(409).json({
+      error: "This video has not finished uploading to VideoDB yet.",
+    });
+    return;
+  }
+  if (video.durationSeconds > 0 && start >= video.durationSeconds) {
+    res.status(400).json({ error: "The clip starts after the video ends." });
+    return;
+  }
+  const clampedEnd =
+    video.durationSeconds > 0 ? Math.min(end, video.durationSeconds) : end;
+  // Validate the EFFECTIVE range (after clamping to the video's duration).
+  if (clampedEnd - start < 1) {
+    res.status(400).json({ error: "Select a clip of at least one second." });
+    return;
+  }
+
+  try {
+    const coll = await getVideoDBCollection();
+    const media = await withTimeout(
+      coll.getVideo(video.videodbVideoId),
+      60_000,
+      "VideoDB video fetch",
+    );
+    // A trimmed stream containing ONLY the requested range. Sub-second
+    // precision is passed through; VideoDB cuts on the nearest frame.
+    const clipStreamUrl = await withTimeout(
+      media.generateStream([[start, clampedEnd]]),
+      3 * 60_000,
+      "Clip stream generation",
+    );
+    if (!clipStreamUrl) {
+      throw new Error("VideoDB did not return a stream for the clip range");
+    }
+    // …then a downloadable file rendered from that stream. `download()` posts
+    // the instance's streamUrl, so point it at the trimmed stream first.
+    const safeTitle =
+      video.title.replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "clip";
+    const name = `${safeTitle} ${formatTimestampForFilename(start)}-${formatTimestampForFilename(clampedEnd)}`;
+    // `streamUrl` is typed read-only but is a plain instance property; the
+    // SDK's download() posts it verbatim, so we point it at the trimmed stream.
+    (media as unknown as { streamUrl: string }).streamUrl = clipStreamUrl;
+    const download = (await withTimeout(
+      media.download(name),
+      5 * 60_000,
+      "Clip download rendering",
+    )) as Record<string, unknown> | undefined;
+
+    const downloadUrl =
+      typeof download?.["downloadUrl"] === "string"
+        ? (download["downloadUrl"] as string)
+        : typeof download?.["download_url"] === "string"
+          ? (download["download_url"] as string)
+          : null;
+    if (!downloadUrl) {
+      logger.error(
+        { videoId: video.id, downloadKeys: Object.keys(download ?? {}) },
+        "VideoDB download response had no download URL",
+      );
+      throw new Error("VideoDB did not return a download URL");
+    }
+    res.json(ExportClipResponse.parse({ downloadUrl, name: `${name}.mp4` }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error({ err, videoId: video.id }, "Clip export failed");
+    res.status(502).json({ error: `Could not export the clip: ${message}` });
+  }
+});
+
+function formatTimestampForFilename(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}m${(s % 60).toString().padStart(2, "0")}s`;
+}
+
+router.post("/videos/:id/confirm-language", async (req, res): Promise<void> => {
+  const params = ConfirmVideoLanguageParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const body = ConfirmVideoLanguageBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  if (!isVideoDBConfigured()) {
+    res.status(503).json({
+      error:
+        "VideoDB is not configured. Add the VIDEODB_API_KEY secret, then try again.",
+    });
+    return;
+  }
+
+  const [video] = await db
+    .select()
+    .from(videosTable)
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
+  if (!video) {
+    res.status(404).json({ error: "Video not found" });
+    return;
+  }
+
+  try {
+    await regenerateTranscript(video.id, body.data.languageCode);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error({ err, videoId: video.id }, "Language confirmation transcription failed");
+    res.status(502).json({ error: `Could not re-transcribe the video: ${message}` });
+    return;
+  }
+
+  await db
+    .update(reviewItemsTable)
+    .set({ status: "accepted" })
+    .where(
+      and(
+        eq(reviewItemsTable.videoId, video.id),
+        eq(reviewItemsTable.status, "pending"),
+        like(reviewItemsTable.reason, "Language confusion:%"),
+      ),
+    );
+
+  const stillPending = await db
+    .select({ id: reviewItemsTable.id })
+    .from(reviewItemsTable)
+    .where(
+      and(
+        eq(reviewItemsTable.videoId, video.id),
+        eq(reviewItemsTable.status, "pending"),
+      ),
+    );
+
+  const [updated] = await db
+    .update(videosTable)
+    .set({ status: stillPending.length > 0 ? "flagged" : "indexed" })
+    .where(eq(videosTable.id, video.id))
+    .returning();
+
+  res.json(
+    ConfirmVideoLanguageResponse.parse({
+      ...toApiVideo(updated!),
+      transcriptExcerpt: updated!.transcriptExcerpt,
+      sceneCount: updated!.sceneCount,
+      detectedLanguage: updated!.detectedLanguage,
+    }),
+  );
 });
 
 router.get("/videos/:id", async (req, res): Promise<void> => {
@@ -417,6 +628,159 @@ router.delete("/videos/:id", async (req, res): Promise<void> => {
     await tx.delete(videosTable).where(eq(videosTable.id, params.data.id));
   });
   res.sendStatus(204);
+});
+
+// AI moment lookup inside one video: semantic search filtered to this
+// video's VideoDB id, falling back to keyword matching over its indexed
+// moment rows (covers legacy/demo videos too). Never errors on a miss —
+// { found: false } is a normal answer.
+router.get("/videos/:id/find", async (req, res): Promise<void> => {
+  const params = FindInVideoParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const query = FindInVideoQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const q = query.data.q.trim();
+  if (!q) {
+    res.status(400).json({ error: "Ask what you're looking for." });
+    return;
+  }
+  const [video] = await db
+    .select()
+    .from(videosTable)
+    .where(
+      and(
+        eq(videosTable.id, params.data.id),
+        eq(videosTable.userId, currentUserId(req)),
+      ),
+    );
+  if (!video) {
+    res.status(404).json({ error: "Video not found" });
+    return;
+  }
+
+  // Semantic pass — collection-wide search, kept only for this video. The
+  // wider per-index limit compensates for other videos crowding the list.
+  if (video.videodbVideoId && isVideoDBConfigured()) {
+    try {
+      const coll = await withTimeout(
+        getVideoDBCollection(),
+        60_000,
+        "getCollection",
+      );
+      // Video-level search stays inside this one video — no collection
+      // noise from the user's other footage.
+      const vdbVideo = await withTimeout(
+        coll.getVideo(video.videodbVideoId),
+        60_000,
+        "getVideo",
+      );
+      const searchIndex = async (
+        indexType: IndexTypeValues,
+      ): Promise<InstanceType<typeof SearchResult>["shots"]> => {
+        try {
+          const result = await withTimeout(
+            vdbVideo.search(q, SearchTypeValues.semantic, indexType, 5),
+            60_000,
+            `find:${indexType}`,
+          );
+          return result instanceof SearchResult ? result.shots : [];
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (/no results found/i.test(message)) return [];
+          throw err;
+        }
+      };
+      // One index erroring must not sink the other's answer.
+      const settled = await Promise.allSettled([
+        searchIndex(IndexTypeValues.spoken),
+        searchIndex(IndexTypeValues.scene),
+      ]);
+      if (
+        settled[0].status === "rejected" &&
+        settled[1].status === "rejected"
+      ) {
+        throw settled[0].reason;
+      }
+      const spoken =
+        settled[0].status === "fulfilled" ? settled[0].value[0] : undefined;
+      const scene =
+        settled[1].status === "fulfilled" ? settled[1].value[0] : undefined;
+      const shot = spoken ?? scene;
+      if (shot) {
+        const snippet = (shot.text?.trim() || "")
+          .replaceAll(USER_MATCH_SENTINEL, "")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+        res.json(
+          FindInVideoResponse.parse({
+            found: true,
+            timestampSeconds: Math.max(0, Math.round(shot.start)),
+            snippet: snippet || "Matched moment",
+            matchType: spoken ? "speech" : "scene",
+          }),
+        );
+        return;
+      }
+    } catch (err) {
+      // Fall through to the keyword pass — an in-player lookup should
+      // degrade quietly rather than surface retrieval plumbing errors.
+      logger.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          videoId: video.id,
+        },
+        "Semantic find-in-video failed; falling back to keywords",
+      );
+    }
+  }
+
+  // Keyword pass over this video's indexed moments.
+  const rows = await db
+    .select()
+    .from(momentsTable)
+    .where(eq(momentsTable.videoId, video.id));
+  const needle = q.toLowerCase();
+  const terms = needle.split(/\s+/).filter((t) => t.length > 2);
+  const best = rows
+    .map((m) => {
+      const haystack = `${m.snippet} ${m.keywords.join(" ")}`.toLowerCase();
+      let score = 0;
+      if (haystack.includes(needle)) score += 5;
+      for (const t of terms) {
+        if (haystack.includes(t)) score += 1;
+      }
+      return score > 0 ? { m, score } : null;
+    })
+    .filter((x) => x !== null)
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.m.timestampSeconds - b.m.timestampSeconds,
+    )[0];
+  if (best) {
+    res.json(
+      FindInVideoResponse.parse({
+        found: true,
+        timestampSeconds: best.m.timestampSeconds,
+        snippet: best.m.snippet,
+        matchType: "speech",
+      }),
+    );
+    return;
+  }
+  res.json(
+    FindInVideoResponse.parse({
+      found: false,
+      timestampSeconds: null,
+      snippet: null,
+      matchType: null,
+    }),
+  );
 });
 
 export default router;

@@ -50,6 +50,8 @@ export interface Video {
   playerUrl?: string | null;
   /** @nullable */
   indexError?: string | null;
+  /** @nullable */
+  detectedLanguage?: string | null;
   tags: string[];
   people: string[];
 }
@@ -59,6 +61,8 @@ export type VideoDetail = Video & ({
   transcriptExcerpt: string | null;
   /** @nullable */
   sceneCount?: number | null;
+  /** @nullable */
+  detectedLanguage?: string | null;
 });
 
 export interface User {
@@ -66,6 +70,14 @@ export interface User {
   email: string;
   name: string;
   createdAt: string;
+  languageProfile: string[];
+}
+
+export interface UserUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** Languages the user regularly films in, used to flag likely transcription misdetections. */
+  languageProfile?: string[];
 }
 
 export interface SignupInput {
@@ -102,6 +114,8 @@ export interface VideoUploadInput {
   recordedAt?: string;
   location?: string;
   source?: VideoUploadInputSource;
+  /** Optional language code to tell the transcription model what to expect (e.g. "hi", "ta"). If omitted, the language is auto-detected. */
+  requestedLanguage?: string;
   /**
      * Optional free-text request applied to this upload's privacy scan — e.g. "skip anything with my ex". Matching scenes are flagged for review instead of auto-included.
      * @maxLength 500
@@ -118,6 +132,28 @@ export interface VideoUpdate {
   people?: string[];
 }
 
+export interface ClipExportInput {
+  /** @minimum 0 */
+  startSeconds: number;
+  /** @minimum 0 */
+  endSeconds: number;
+}
+
+export interface ClipExport {
+  /** Direct URL to download the rendered clip file. */
+  downloadUrl: string;
+  /** Suggested filename for the clip. */
+  name: string;
+}
+
+export interface ConfirmLanguageBody {
+  /**
+     * The user-confirmed ISO language code for the video transcript.
+     * @minLength 1
+     */
+  languageCode: string;
+}
+
 export type SearchResultMatchType = typeof SearchResultMatchType[keyof typeof SearchResultMatchType];
 
 
@@ -125,6 +161,7 @@ export const SearchResultMatchType = {
   speech: 'speech',
   scene: 'scene',
   person: 'person',
+  title: 'title',
 } as const;
 
 export interface SearchResult {
@@ -236,12 +273,202 @@ export interface Person {
   lastSeenAt?: string | null;
 }
 
+export interface EnrolledPerson {
+  id: number;
+  name: string;
+  /** Data-URL copy of the reference photo for display */
+  thumbnailUrl: string;
+  createdAt: string;
+}
+
+export interface EnrollPersonInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** Reference photo (JPEG/PNG) with one clear face */
+  photo: Blob;
+}
+
+export interface EnrolledPersonUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+}
+
+/**
+ * "applied" when results were filtered by confirmed face matches; "unavailable" when face recognition was unreachable/misconfigured and scene-only results are shown instead.
+ */
+export type PersonFilterStatus = typeof PersonFilterStatus[keyof typeof PersonFilterStatus];
+
+
+export const PersonFilterStatus = {
+  applied: 'applied',
+  unavailable: 'unavailable',
+} as const;
+
+export interface PersonFilter {
+  /** Enrolled person detected in the query */
+  personName: string;
+  /** The scene description actually used for semantic search */
+  sceneQuery: string;
+  /** "applied" when results were filtered by confirmed face matches; "unavailable" when face recognition was unreachable/misconfigured and scene-only results are shown instead. */
+  status: PersonFilterStatus;
+}
+
+/**
+ * How the query was routed after intent classification
+ */
+export type SearchResponseIntent = typeof SearchResponseIntent[keyof typeof SearchResponseIntent];
+
+
+export const SearchResponseIntent = {
+  search: 'search',
+  count: 'count',
+  recency: 'recency',
+  group: 'group',
+} as const;
+
+export interface SearchResponse {
+  results: SearchResult[];
+  /** Present when an enrolled person was detected in the query */
+  personFilter?: PersonFilter | null;
+  /** How the query was routed after intent classification */
+  intent: SearchResponseIntent;
+  /** Natural-language answer shown above the clips (count/recency intents) */
+  answer?: string | null;
+}
+
 export interface LibraryStats {
   totalVideos: number;
   totalHoursIndexed: number;
   totalPeople: number;
   totalScenes: number;
   pendingReviewCount: number;
+}
+
+export interface Chat {
+  id: number;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ChatMessageRole = typeof ChatMessageRole[keyof typeof ChatMessageRole];
+
+
+export const ChatMessageRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export type ChatMessageIntent = typeof ChatMessageIntent[keyof typeof ChatMessageIntent];
+
+
+export const ChatMessageIntent = {
+  search: 'search',
+  count: 'count',
+  recency: 'recency',
+  group: 'group',
+} as const;
+
+export interface ChatMessage {
+  id: number;
+  chatId: number;
+  role: ChatMessageRole;
+  content: string;
+  createdAt: string;
+  /** User message originated from voice input */
+  voice?: boolean;
+  /** Explicit person mentions attached to a user message */
+  personIds?: number[];
+  /** Names for the personIds at send time (for display) */
+  personNames?: string[];
+  /** Clip results backing an assistant reply */
+  results?: SearchResult[];
+  personFilter?: PersonFilter | null;
+  intent?: ChatMessageIntent;
+  /** @nullable */
+  answer?: string | null;
+  /** Assistant turn ended in an error; content holds the message */
+  failed?: boolean;
+}
+
+export type ChatDetail = Chat & {
+  messages: ChatMessage[];
+};
+
+export interface ChatInput {
+  /** @maxLength 120 */
+  title?: string;
+}
+
+export interface ChatUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+}
+
+export interface ChatMessageInput {
+  /**
+     * May be empty only when personIds are provided
+     * @maxLength 2000
+     */
+  content: string;
+  /**
+     * Enrolled person ids mentioned via "/" pills; multiple ids must ALL appear (AND)
+     * @maxItems 5
+     */
+  personIds?: number[];
+  /** Message text came from voice transcription */
+  voice?: boolean;
+}
+
+export interface ChatTurn {
+  userMessage: ChatMessage;
+  assistantMessage: ChatMessage;
+}
+
+export interface FindInVideoResult {
+  found: boolean;
+  /** @nullable */
+  timestampSeconds?: number | null;
+  /** @nullable */
+  snippet?: string | null;
+  /** @nullable */
+  matchType?: string | null;
+}
+
+export interface VoiceStatus {
+  configured: boolean;
+}
+
+export interface VoiceTranscribeInput {
+  /** Recorded audio (webm/ogg/mp4/wav), max ~15MB */
+  audio: Blob;
+}
+
+export interface TranscriptionResult {
+  text: string;
+}
+
+export interface TtsInput {
+  /**
+     * @minLength 1
+     * @maxLength 1200
+     */
+  text: string;
+}
+
+export interface TtsResult {
+  /** Base64-encoded MP3 audio of the spoken answer */
+  audioBase64: string;
+  mimeType: string;
 }
 
 export type ListVideosParams = {
@@ -257,6 +484,10 @@ export const ListVideosStatus = {
   flagged: 'flagged',
   failed: 'failed',
 } as const;
+
+export type FindInVideoParams = {
+q: string;
+};
 
 export type SearchMemoriesParams = {
 q: string;

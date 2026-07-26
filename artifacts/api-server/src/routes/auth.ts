@@ -7,6 +7,8 @@ import {
   LoginBody,
   LoginResponse,
   GetCurrentUserResponse,
+  UpdateCurrentUserBody,
+  UpdateCurrentUserResponse,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -19,6 +21,7 @@ function toApiUser(u: UserRow) {
     email: u.email,
     name: u.name,
     createdAt: u.createdAt.toISOString(),
+    languageProfile: u.languageProfile,
   };
 }
 
@@ -145,6 +148,34 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   res.json(GetCurrentUserResponse.parse(toApiUser(user)));
+});
+
+router.patch("/auth/me", requireAuth, async (req, res): Promise<void> => {
+  const parsed = UpdateCurrentUserBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const updates: Partial<Pick<UserRow, "name" | "languageProfile">> = {};
+  if (parsed.data.name !== undefined) {
+    const name = parsed.data.name.trim();
+    if (name) updates.name = name;
+  }
+  if (parsed.data.languageProfile !== undefined) {
+    updates.languageProfile = parsed.data.languageProfile.map((c) =>
+      c.trim().toLowerCase(),
+    );
+  }
+  const [user] = await db
+    .update(usersTable)
+    .set(updates)
+    .where(eq(usersTable.id, req.session.userId!))
+    .returning();
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(UpdateCurrentUserResponse.parse(toApiUser(user)));
 });
 
 export default router;

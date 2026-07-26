@@ -13,4 +13,5 @@ export const SearchResultMatchType = {
   speech: 'speech',
   scene: 'scene',
   person: 'person',
+  title: 'title',
 } as const;

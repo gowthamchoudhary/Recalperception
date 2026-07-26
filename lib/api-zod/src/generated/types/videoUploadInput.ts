@@ -16,6 +16,8 @@ export interface VideoUploadInput {
   recordedAt?: string;
   location?: string;
   source?: VideoUploadInputSource;
+  /** Optional language code to tell the transcription model what to expect (e.g. "hi", "ta"). If omitted, the language is auto-detected. */
+  requestedLanguage?: string;
   /**
      * Optional free-text request applied to this upload's privacy scan — e.g. "skip anything with my ex". Matching scenes are flagged for review instead of auto-included.
      * @maxLength 500

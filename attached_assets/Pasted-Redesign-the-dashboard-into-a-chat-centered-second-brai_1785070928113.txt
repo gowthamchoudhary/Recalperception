@@ -1,0 +1,43 @@
+Redesign the dashboard into a chat-centered second-brain interface, replacing the current plain search page. Apply this to the main authenticated home screen.
+
+1. Overall layout
+
+Centered chat interface as the main focus of the page — not a search bar sitting above a grid.
+Below the input, when no conversation is active, show a few cards: "Recently added" videos, and quick stats (video count, hours indexed).
+Once the user sends a query, the interface transitions into a chat thread — their question, then the system's response — so follow-up questions feel like a continuing conversation, not repeated fresh searches.
+Apply the existing landing-page design system throughout: cream background (
+#f4f4f2), gradient-fill buttons, gradient/glass input styling, consistent card shadows and rounded corners — reuse those components, don't create new styles.
+
+2. Person-mention input
+
+Typing / in the chat input opens a dropdown/grid of enrolled people (from the People page) with their thumbnails.
+Selecting a person inserts them as a tagged mention in the input (visually distinct, e.g. a pill/chip inside the text field), which the backend uses as an explicit person filter — bypassing the fuzzy Groq name-matching for that query since the person is already unambiguous.
+Multiple people can be mentioned in one query.
+
+3. Voice input
+
+Add a mic icon next to the text input (addition, not replacement — typed search stays as the reliable path).
+Clicking it opens a centered recording orb overlay (visual pulse/animation while recording).
+On stop, transcribe the speech (via ElevenLabs STT or Groq — your call on which) and populate the input field with the resulting text, visible to the user, before it's sent — user can edit or correct it before submitting, not auto-sent blind.
+Use ELEVENLABS_API_KEY from secrets once provided.
+
+4. Staged processing feedback
+
+Replace the generic loading spinner with a short sequence of real status stages tied to what's actually happening: e.g. "Understanding your question..." (intent classification) → "Searching your archive..." (retrieval) → "Confirming details..." (person match / reranking, if applicable) → results appear.
+Stages should reflect the real backend steps for that specific query type (a count query shows different stages than a person-search query) — not a fake generic sequence.
+
+5. Response rendering in chat
+
+Results render inline in the chat thread: thumbnail/clip cards plus the natural-language answer (from the existing intent router), not just a bare list.
+User can ask follow-up questions in the same thread, and the system should have access to the recent conversation context (e.g. "show me more from that day" following a previous result).
+Optional but valuable: speak the answer aloud via ElevenLabs TTS when the query came from voice input.
+
+6. Per-video controls
+
+Add a dropdown/menu on each video card (in chat results and in the library) showing: metadata (duration, upload date, detected people, language), an edit option, and export/download (reusing the clip trim + export feature already built).
+
+7. Video player — AI moment lookup
+
+In the video player, add a small AI icon (not a full transcript-on-hover) that lets the user type or ask a question specific to that video, e.g. "find the part where I mentioned the deadline" — this runs a scoped search within just that video's index and jumps the playhead to the matching timestamp, rather than searching the whole library.
+
+Build order: layout + design system first, then staged processing + chat threading (core experience), then person-mention input, then per-video dropdown, then voice, then in-player AI lookup last (most isolated, safest to cut if time runs short).

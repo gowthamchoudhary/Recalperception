@@ -17,7 +17,7 @@ export type RerankCandidate = {
   key: number;
   videoTitle: string;
   snippet: string;
-  matchType: "speech" | "scene" | "person";
+  matchType: "speech" | "scene" | "person" | "title";
   timestampSeconds: number;
 };
 

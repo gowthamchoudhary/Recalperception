@@ -12,4 +12,6 @@ export type VideoDetail = Video & ({
   transcriptExcerpt: string | null;
   /** @nullable */
   sceneCount?: number | null;
+  /** @nullable */
+  detectedLanguage?: string | null;
 });

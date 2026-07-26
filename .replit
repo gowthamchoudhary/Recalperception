@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "postgresql-16"]
+modules = ["nodejs-24", "postgresql-16", "python-base-3.13"]
 
 [deployment]
 router = "application"
@@ -21,3 +21,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+AWS_REGION = "ap-southeast-2"
+AWS_REKOGNITION_COLLECTION_ID = "recall-faces"
