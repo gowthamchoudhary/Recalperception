@@ -261,6 +261,19 @@ export async function runSearchPipeline(
       persons = [person];
       sceneFromParse = personParse?.sceneDescription ?? "";
     }
+    // Stage (a): log person resolution outcome every time so failures are visible.
+    logger.info(
+      {
+        query: workingQuery,
+        enrolledCount: enrolledPeople.length,
+        parsedPersonName: personParse?.personName ?? null,
+        resolvedPersonId: person?.id ?? null,
+        resolvedPersonName: person?.name ?? null,
+        sceneDescription: personParse?.sceneDescription ?? null,
+        parseSucceeded: !!personParse,
+      },
+      "[person-search-a] pronoun/name resolution result",
+    );
   }
 
   // Retrieval query priority: for non-search intents the classifier's
@@ -382,6 +395,14 @@ export async function runSearchPipeline(
   if (explicitPersonOnly) {
     onStage?.("person_check");
     const matchedVideoIds = await faceMatchedVideoIds();
+    logger.info(
+      {
+        personIds: selectedPersonIds,
+        personNames: persons.map((p) => p.name),
+        faceMatchedVideoIds: [...matchedVideoIds.keys()],
+      },
+      "[person-search-b] explicit-pill path: video_ids from direct video_faces lookup",
+    );
     let syntheticId = 0;
     videodbResults = videos
       .filter((v) => matchedVideoIds.has(v.id))
@@ -408,6 +429,24 @@ export async function runSearchPipeline(
         matchedVideos: videodbResults.length,
       },
       "Person-only query answered from video_faces",
+    );
+  }
+
+  // Pre-fetch ALL face-matched video IDs for this person (unconstrained by
+  // semantic results) so we can: (b) log what the DB actually has, and
+  // (c) fall back to face-only results when the semantic+face intersection
+  // is empty (e.g. the video didn't rank in the top-12 semantic hits).
+  let preFetchedFaceMatches: Map<number, number> | null = null;
+  if (persons.length > 0 && !explicitPersonOnly) {
+    preFetchedFaceMatches = await faceMatchedVideoIds(); // unconstrained
+    logger.info(
+      {
+        personIds: selectedPersonIds,
+        personNames: persons.map((p) => p.name),
+        faceMatchedVideoIds: [...preFetchedFaceMatches.keys()],
+        faceMatchCount: preFetchedFaceMatches.size,
+      },
+      "[person-search-b] video_ids from direct video_faces lookup (unconstrained)",
     );
   }
 
@@ -511,25 +550,61 @@ export async function runSearchPipeline(
         ...spokenShots.flatMap((s) => toResult(s, "speech")),
         ...sceneShots.flatMap((s) => toResult(s, "scene")),
       ];
-      // Face confirmation: narrow to one shot per video (retrieval order),
-      // cap the set, and keep only candidates where Rekognition confirms
-      // EVERY requested person's enrolled FaceId in frames near the moment.
-      if (persons.length > 0 && videodbResults.length > 0) {
+      // Face confirmation: filter semantic hits to only videos where every
+      // requested person appears per the pre-indexed video_faces table.
+      // Uses preFetchedFaceMatches (unconstrained DB lookup done before
+      // semantic search) rather than a constrained re-query, so videos that
+      // Rekognition confirmed but that didn't rank in the semantic top-N are
+      // not silently dropped.
+      if (persons.length > 0) {
         onStage?.("person_check");
-        const matchedVideoIds = await faceMatchedVideoIds([
-          ...new Set(videodbResults.map((r) => r.videoId)),
-        ]);
-        videodbResults = videodbResults.filter((r) =>
-          matchedVideoIds.has(r.videoId),
-        );
+        const faceMatches = preFetchedFaceMatches ?? new Map<number, number>();
+        const beforeCount = videodbResults.length;
+        const semanticVideoIds = [...new Set(videodbResults.map((r) => r.videoId))];
+        videodbResults = videodbResults.filter((r) => faceMatches.has(r.videoId));
         logger.info(
           {
-            persons: persons.map((p) => p.name),
-            matchedVideos: matchedVideoIds.size,
+            personNames: persons.map((p) => p.name),
+            semanticVideoIds,
+            faceMatchedVideoIds: [...faceMatches.keys()],
+            beforeFaceFilter: beforeCount,
             survivingCandidates: videodbResults.length,
+            droppedByIntersection: beforeCount - videodbResults.length,
           },
-          "Person filter applied via video_faces",
+          "[person-search-c] semantic results after face filter",
         );
+        // Fallback: semantic search ran but none of its results overlapped with
+        // face-confirmed videos (or semantic returned nothing at all). Rather
+        // than returning empty, surface the face-confirmed videos directly.
+        if (videodbResults.length === 0 && faceMatches.size > 0) {
+          logger.info(
+            {
+              personNames: persons.map((p) => p.name),
+              faceMatchCount: faceMatches.size,
+              semanticHadResults: beforeCount > 0,
+            },
+            "[person-search-c] semantic+face intersection empty — falling back to face-only results",
+          );
+          let syntheticId = 0;
+          videodbResults = videos
+            .filter((v) => faceMatches.has(v.id))
+            .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+            .map((v) => ({
+              id: --syntheticId,
+              videoId: v.id,
+              videoTitle: v.title,
+              thumbnailUrl: v.thumbnailUrl,
+              videoUrl: v.videoUrl,
+              snippet: `${personNames} ${persons.length === 1 ? "appears" : "appear"} in this video.`,
+              matchType: "person" as const,
+              matchReason: null,
+              timestampSeconds: faceMatches.get(v.id) ?? 0,
+              durationSeconds: v.durationSeconds,
+              people: v.people,
+              recordedAt: v.recordedAt,
+              location: v.location,
+            }));
+        }
       }
     } catch (err) {
       if (err instanceof SearchUnavailableError) throw err;
