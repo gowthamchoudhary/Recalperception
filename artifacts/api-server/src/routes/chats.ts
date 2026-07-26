@@ -247,14 +247,17 @@ router.post("/chats/:id/messages", async (req, res): Promise<void> => {
     })
     .map((m) => {
       const payload = (m.payload ?? {}) as Record<string, unknown>;
-      const names = Array.isArray(payload["personNames"])
-        ? (payload["personNames"] as string[]).join(" & ")
-        : "";
-      const text =
-        m.role === "user" && names
-          ? [names, m.content].filter(Boolean).join(" ")
-          : m.content;
-      return { role: m.role as "user" | "assistant", content: text };
+      const personNames =
+        m.role === "user" && Array.isArray(payload["personNames"])
+          ? (payload["personNames"] as string[]).filter(
+              (name) => typeof name === "string" && name.trim().length > 0,
+            )
+          : undefined;
+      return {
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        ...(personNames?.length ? { personNames } : {}),
+      };
     })
     .filter((m) => m.content.trim().length > 0)
     .slice(-HISTORY_LIMIT);

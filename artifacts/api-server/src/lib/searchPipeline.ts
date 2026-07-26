@@ -103,6 +103,35 @@ function cleanSnippet(text: string): string {
   return text.replaceAll(USER_MATCH_SENTINEL, "").replace(/\s{2,}/g, " ").trim();
 }
 
+function postgresErrorDetails(err: unknown): Record<string, unknown> {
+  const cause =
+    err instanceof Error && "cause" in err
+      ? (err as Error & { cause?: unknown }).cause
+      : undefined;
+  const pgErr = (cause ?? err) as {
+    message?: unknown;
+    code?: unknown;
+    detail?: unknown;
+    hint?: unknown;
+    schema?: unknown;
+    table?: unknown;
+    column?: unknown;
+    constraint?: unknown;
+  };
+  return {
+    wrapper: err instanceof Error ? err.message : String(err),
+    message: typeof pgErr.message === "string" ? pgErr.message : undefined,
+    code: typeof pgErr.code === "string" ? pgErr.code : undefined,
+    detail: typeof pgErr.detail === "string" ? pgErr.detail : undefined,
+    hint: typeof pgErr.hint === "string" ? pgErr.hint : undefined,
+    schema: typeof pgErr.schema === "string" ? pgErr.schema : undefined,
+    table: typeof pgErr.table === "string" ? pgErr.table : undefined,
+    column: typeof pgErr.column === "string" ? pgErr.column : undefined,
+    constraint:
+      typeof pgErr.constraint === "string" ? pgErr.constraint : undefined,
+  };
+}
+
 const NON_SCENE_WORDS = new Set([
   "show",
   "me",
@@ -285,14 +314,27 @@ export async function runSearchPipeline(
         ? [inArray(videoFacesTable.videoId, candidateVideoIds)]
         : []),
     ];
-    const rows = await db
-      .select({
-        videoId: videoFacesTable.videoId,
-        personId: videoFacesTable.personId,
-      })
-      .from(videoFacesTable)
-      .innerJoin(videosTable, eq(videoFacesTable.videoId, videosTable.id))
-      .where(and(...filters));
+    let rows: { videoId: number; personId: number }[];
+    try {
+      rows = await db
+        .select({
+          videoId: videoFacesTable.videoId,
+          personId: videoFacesTable.personId,
+        })
+        .from(videoFacesTable)
+        .innerJoin(videosTable, eq(videoFacesTable.videoId, videosTable.id))
+        .where(and(...filters));
+    } catch (err) {
+      logger.error(
+        {
+          ...postgresErrorDetails(err),
+          selectedPersonIds,
+          candidateVideoIds,
+        },
+        "video_faces lookup failed",
+      );
+      throw err;
+    }
     const byVideo = new Map<number, Set<number>>();
     for (const row of rows) {
       const set = byVideo.get(row.videoId) ?? new Set<number>();

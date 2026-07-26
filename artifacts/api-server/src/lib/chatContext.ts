@@ -18,13 +18,22 @@ const MAX_REWRITE_CHARS = 300;
 export type ChatHistoryEntry = {
   role: "user" | "assistant";
   content: string;
+  /** People explicitly mentioned/tagged on that historical turn. */
+  personNames?: string[];
 };
+
+function needsPersonContext(query: string): boolean {
+  return /\b(?:he|him|his|she|her|hers|they|them|their|theirs|that person|this person)\b/i.test(
+    query,
+  );
+}
 
 export async function rewriteQueryWithHistory(
   query: string,
   history: ChatHistoryEntry[],
 ): Promise<string> {
   const apiKey = process.env["GROQ_API_KEY"];
+  const includePeople = needsPersonContext(query);
   const recent = history
     .filter((h) => h.content.trim().length > 0)
     .slice(-MAX_HISTORY_ENTRIES);
@@ -32,8 +41,13 @@ export async function rewriteQueryWithHistory(
 
   const transcript = recent
     .map(
-      (h) =>
-        `${h.role === "user" ? "User" : "Assistant"}: ${h.content.slice(0, MAX_ENTRY_CHARS)}`,
+      (h) => {
+        const people =
+          includePeople && h.personNames?.length
+            ? ` [explicitly mentioned people: ${h.personNames.join(", ")}]`
+            : "";
+        return `${h.role === "user" ? "User" : "Assistant"}${people}: ${h.content.slice(0, MAX_ENTRY_CHARS)}`;
+      },
     )
     .join("\n");
 
@@ -43,6 +57,8 @@ export async function rewriteQueryWithHistory(
     "Rules:",
     "- If the newest message already stands alone, return it UNCHANGED.",
     "- Resolve references like \"there\", \"that trip\", \"what about her\" using the conversation.",
+    "- Use explicitly mentioned people from history ONLY when the newest message refers to a person by pronoun or phrase like \"him\", \"her\", \"them\", or \"that person\".",
+    "- Do NOT carry a prior person into a broad standalone request such as \"all videos\" unless the newest message explicitly mentions or tags that person.",
     "- Keep person names exactly as written. Never invent details that were not mentioned.",
     "- Keep it short and search-like — no question rephrasing beyond what's needed.",
   ].join("\n");
