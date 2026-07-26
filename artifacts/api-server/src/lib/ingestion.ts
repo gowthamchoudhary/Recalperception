@@ -13,6 +13,7 @@ import {
   displayName,
   findLanguageConfusion,
 } from "./languageConfusion";
+import { enqueueFaceIndexForVideo } from "./videoFaceIndex";
 
 export type UploadSource =
   | { kind: "url"; url: string }
@@ -305,6 +306,7 @@ export async function applyScanResults(
         .where(eq(videosTable.id, videoRowId));
     });
     logger.info({ videoRowId }, "Privacy scan clean; video indexed");
+    enqueueFaceIndexForVideo(videoRowId);
   }
 }
 

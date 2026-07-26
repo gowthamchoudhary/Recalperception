@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, reviewItemsTable, videosTable, momentsTable } from "@workspace/db";
+import {
+  db,
+  reviewItemsTable,
+  videosTable,
+  momentsTable,
+  videoFacesTable,
+} from "@workspace/db";
 import {
   ListReviewItemsResponse,
   ResolveReviewItemParams,
@@ -14,6 +20,7 @@ import {
 } from "../lib/videodb";
 import { hasPendingReviewItems } from "../lib/ingestion";
 import { currentUserId } from "../lib/auth";
+import { enqueueFaceIndexForVideo } from "../lib/videoFaceIndex";
 
 const router: IRouter = Router();
 
@@ -108,6 +115,7 @@ router.patch("/review-items/:id", async (req, res): Promise<void> => {
           .update(videosTable)
           .set({ status: "indexed" })
           .where(eq(videosTable.id, video.id));
+        enqueueFaceIndexForVideo(video.id);
       }
     }
     res.json(ResolveReviewItemResponse.parse(responsePayload));
@@ -142,6 +150,7 @@ router.patch("/review-items/:id", async (req, res): Promise<void> => {
     await tx
       .delete(reviewItemsTable)
       .where(eq(reviewItemsTable.videoId, video.id));
+    await tx.delete(videoFacesTable).where(eq(videoFacesTable.videoId, video.id));
     await tx.delete(videosTable).where(eq(videosTable.id, video.id));
   });
   res.json(ResolveReviewItemResponse.parse(responsePayload));

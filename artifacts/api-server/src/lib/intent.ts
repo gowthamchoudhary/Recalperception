@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import type { ChatHistoryEntry } from "./chatContext";
 
 /**
  * Intent routing for search queries.
@@ -141,6 +142,17 @@ export type AnswerFacts = {
   titleOnlyMatches?: number;
 };
 
+export type SearchAnswerFacts = {
+  intent: "search" | "group";
+  personName?: string | null;
+  matches: {
+    title: string;
+    date: string | null;
+    snippet: string;
+    matchType: "speech" | "scene" | "person" | "title";
+  }[];
+};
+
 /**
  * Short natural-language answer for count/recency queries, grounded in the
  * retrieval facts. Returns null on any failure — the caller falls back to a
@@ -149,6 +161,7 @@ export type AnswerFacts = {
 export async function generateIntentAnswer(
   query: string,
   facts: AnswerFacts,
+  history: ChatHistoryEntry[] = [],
 ): Promise<string | null> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey) return null;
@@ -183,7 +196,14 @@ export async function generateIntentAnswer(
         max_tokens: 150,
         messages: [
           { role: "system", content: system },
-          { role: "user", content: JSON.stringify({ query, ...facts }) },
+          {
+            role: "user",
+            content: JSON.stringify({
+              query,
+              recentHistory: history.slice(-6),
+              ...facts,
+            }),
+          },
         ],
       }),
     });
@@ -203,6 +223,82 @@ export async function generateIntentAnswer(
     logger.warn(
       { err: err instanceof Error ? err.message : String(err) },
       "Intent answer generation errored/timed out; using deterministic fallback",
+    );
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Short grounded answer for ordinary search/group turns. This replaces route
+ * templates with a sentence derived from the actual matched snippets.
+ */
+export async function generateSearchAnswer(
+  query: string,
+  facts: SearchAnswerFacts,
+  history: ChatHistoryEntry[] = [],
+): Promise<string | null> {
+  const apiKey = process.env["GROQ_API_KEY"];
+  if (!apiKey) return null;
+
+  const system = [
+    "You answer search results for a user's personal video archive.",
+    "You receive only verified matched clips: title, date, snippet, and match type.",
+    "Rules:",
+    "- Reply with 1 short conversational sentence of plain text. No JSON, no markdown, no preamble.",
+    "- Ground the answer in the provided matches. Never invent clips, people, dates, or counts not present in facts.",
+    "- For search intent, describe the strongest actual match or say what the matching clips show.",
+    "- For group intent, summarize the set naturally and mention the number of matching videos shown.",
+    "- If there are no matches, say you couldn't find a matching moment in the archive.",
+    "- Use recentHistory only to resolve natural references or keep continuity; do not add facts from it unless supported by matches.",
+    "- If personName is present, mention that the results are filtered to that person or people.",
+  ].join("\n");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ANSWER_TIMEOUT_MS);
+  try {
+    const resp = await fetch(GROQ_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0.2,
+        max_tokens: 120,
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: JSON.stringify({
+              query,
+              recentHistory: history.slice(-6),
+              ...facts,
+              matches: facts.matches.slice(0, 12),
+            }),
+          },
+        ],
+      }),
+    });
+    if (!resp.ok) {
+      logger.warn(
+        { status: resp.status },
+        "Search answer generation failed; using deterministic fallback",
+      );
+      return null;
+    }
+    const data = (await resp.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = data.choices?.[0]?.message?.content?.trim();
+    return text ? text.slice(0, 500) : null;
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Search answer generation errored/timed out; using deterministic fallback",
     );
     return null;
   } finally {

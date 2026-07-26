@@ -22,6 +22,11 @@ export type RerankCandidate = {
 };
 
 export type RerankedItem = { key: number; reason: string };
+export type DroppedRerankItem = { key: number; reason: string };
+export type RerankResult = {
+  results: RerankedItem[];
+  dropped: DroppedRerankItem[];
+};
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -34,7 +39,7 @@ export function isRerankConfigured(): boolean {
 export async function rerankWithGroq(
   query: string,
   candidates: RerankCandidate[],
-): Promise<RerankedItem[] | null> {
+): Promise<RerankResult | null> {
   const apiKey = process.env["GROQ_API_KEY"];
   if (!apiKey || candidates.length === 0) return null;
 
@@ -42,12 +47,13 @@ export async function rerankWithGroq(
     "You rerank search results for a personal video memory archive.",
     "The user searches their own home videos by what was said (speech transcript matches) and what was visible (scene description matches).",
     "Transcripts can be garbled or in the wrong language — a snippet of gibberish that merely embedded-matched is NOT a genuine answer.",
-    "Given the query and candidates, return JSON: {\"results\": [{\"key\": <candidate key>, \"reason\": \"<one short sentence why this matches>\"}]}.",
+    "Given the query and candidates, return JSON: {\"results\": [{\"key\": <candidate key>, \"reason\": \"<one short sentence why this matches>\"}], \"dropped\": [{\"key\": <candidate key>, \"reason\": \"<one short sentence why this does not answer the query>\"}]}.",
     "Rules:",
     "- Drop candidates that do not genuinely answer the query's intent, even if they matched semantically.",
     "- Order the kept candidates from most to least relevant.",
     "- Each reason must be a single short plain-English sentence grounded in the candidate's snippet.",
-    "- Only use keys that exist in the candidate list. Return {\"results\": []} if nothing is relevant.",
+    "- Every candidate not included in results must appear in dropped with a specific reason.",
+    "- Only use keys that exist in the candidate list. Return {\"results\": [], \"dropped\": [...]} if nothing is relevant.",
   ].join("\n");
 
   const user = JSON.stringify({
@@ -96,7 +102,7 @@ export async function rerankWithGroq(
     };
     const content = data.choices?.[0]?.message?.content;
     if (!content) return null;
-    const parsed = JSON.parse(content) as { results?: unknown };
+    const parsed = JSON.parse(content) as { results?: unknown; dropped?: unknown };
     if (!Array.isArray(parsed.results)) return null;
 
     const validKeys = new Set(candidates.map((c) => c.key));
@@ -115,16 +121,47 @@ export async function rerankWithGroq(
         reason: typeof reason === "string" ? reason.slice(0, 300) : "",
       });
     }
+    const dropped: DroppedRerankItem[] = [];
+    const droppedSeen = new Set<number>();
+    if (Array.isArray(parsed.dropped)) {
+      for (const r of parsed.dropped) {
+        if (typeof r !== "object" || r === null) continue;
+        const key = (r as { key?: unknown }).key;
+        const reason = (r as { reason?: unknown }).reason;
+        if (
+          typeof key !== "number" ||
+          !validKeys.has(key) ||
+          seen.has(key) ||
+          droppedSeen.has(key)
+        ) {
+          continue;
+        }
+        droppedSeen.add(key);
+        dropped.push({
+          key,
+          reason: typeof reason === "string" ? reason.slice(0, 300) : "",
+        });
+      }
+    }
+    for (const candidate of candidates) {
+      if (!seen.has(candidate.key) && !droppedSeen.has(candidate.key)) {
+        dropped.push({
+          key: candidate.key,
+          reason: "The reranker omitted this candidate without an explicit reason.",
+        });
+      }
+    }
     logger.info(
       {
         model: GROQ_MODEL,
         candidates: candidates.length,
         kept: items.length,
+        dropped: dropped.map((d) => ({ key: d.key, reason: d.reason })),
         ms: Date.now() - started,
       },
       "Groq rerank completed",
     );
-    return items;
+    return { results: items, dropped };
   } catch (err) {
     logger.warn(
       { err: err instanceof Error ? err.message : String(err) },

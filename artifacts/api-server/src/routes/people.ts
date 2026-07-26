@@ -4,7 +4,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import multer from "multer";
-import { db, videosTable, peopleTable, type PersonRow } from "@workspace/db";
+import {
+  db,
+  videosTable,
+  peopleTable,
+  videoFacesTable,
+  type PersonRow,
+} from "@workspace/db";
 import {
   ListPeopleResponse,
   ListEnrolledPeopleResponse,
@@ -22,6 +28,7 @@ import {
   deleteFace,
   RekognitionUnavailableError,
 } from "../lib/rekognition";
+import { enqueueFaceIndexForPerson } from "../lib/videoFaceIndex";
 
 const router: IRouter = Router();
 
@@ -116,6 +123,7 @@ router.post(
         })
         .returning();
       logger.info({ personId: row!.id }, "Enrolled person for face search");
+      enqueueFaceIndexForPerson(row!.id);
       res.status(201).json(EnrollPersonResponse.parse(toApiEnrolledPerson(row!)));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -169,14 +177,25 @@ router.delete("/people/enrolled/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid request" });
     return;
   }
-  const [row] = await db
-    .delete(peopleTable)
+  const [existing] = await db
+    .select()
+    .from(peopleTable)
     .where(
       and(
         eq(peopleTable.id, params.data.id),
         eq(peopleTable.userId, currentUserId(req)),
       ),
-    )
+    );
+  if (!existing) {
+    res.status(404).json({ error: "Person not found" });
+    return;
+  }
+  await db
+    .delete(videoFacesTable)
+    .where(eq(videoFacesTable.personId, existing.id));
+  const [row] = await db
+    .delete(peopleTable)
+    .where(eq(peopleTable.id, existing.id))
     .returning();
   if (!row) {
     res.status(404).json({ error: "Person not found" });

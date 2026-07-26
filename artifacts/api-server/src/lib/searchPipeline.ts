@@ -1,5 +1,11 @@
-import { eq } from "drizzle-orm";
-import { db, videosTable, momentsTable, peopleTable } from "@workspace/db";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  db,
+  videosTable,
+  momentsTable,
+  peopleTable,
+  videoFacesTable,
+} from "@workspace/db";
 import { SearchResult, SearchTypeValues, IndexTypeValues } from "videodb";
 import { logger } from "./logger";
 import {
@@ -19,6 +25,7 @@ import { isRekognitionConfigured } from "./rekognition";
 import {
   classifyIntent,
   generateIntentAnswer,
+  generateSearchAnswer,
   bestVideoDate,
   DEFAULT_CLASSIFICATION,
   type SearchIntent,
@@ -100,6 +107,38 @@ export class SearchUnavailableError extends Error {
 /** Scene descriptions may carry the privacy-scan sentinel — never show it. */
 function cleanSnippet(text: string): string {
   return text.replaceAll(USER_MATCH_SENTINEL, "").replace(/\s{2,}/g, " ").trim();
+}
+
+const NON_SCENE_WORDS = new Set([
+  "show",
+  "me",
+  "find",
+  "search",
+  "moments",
+  "moment",
+  "clips",
+  "clip",
+  "videos",
+  "video",
+  "with",
+  "of",
+  "the",
+  "a",
+  "an",
+  "all",
+  "every",
+  "where",
+  "when",
+  "please",
+]);
+
+function hasMeaningfulSceneDescription(text: string): boolean {
+  const terms = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 2 && !NON_SCENE_WORDS.has(t));
+  return terms.length > 0;
 }
 
 /** Deterministic answer when Groq answer generation is unavailable. */
@@ -219,7 +258,10 @@ export async function runSearchPipeline(
   // Pill-only turn ("show me moments with X", no topic text): semantic
   // search over a bare name is meaningless — browse the library instead
   // and let face confirmation / people tags do the filtering.
-  const pillOnly = !workingQuery.trim() && persons.length > 0;
+  const explicitPersonOnly =
+    explicitIds.length > 0 &&
+    persons.length > 0 &&
+    !hasMeaningfulSceneDescription(sceneFromParse);
   let personFilterStatus: "applied" | "unavailable" = "applied";
 
   const q = effectiveQuery.toLowerCase();
@@ -235,7 +277,73 @@ export async function runSearchPipeline(
   // Semantic search over VideoDB-indexed videos (real uploads): two parallel
   // retrievals — spoken-word transcript AND visual scene descriptions.
   let videodbResults: ApiSearchResult[] = [];
-  if (videoByVdbId.size > 0) {
+  const selectedPersonIds = persons.map((p) => p.id);
+  const personNames = persons.map((p) => p.name).join(" & ");
+  const faceMatchedVideoIds = async (
+    candidateVideoIds?: number[],
+  ): Promise<Set<number>> => {
+    if (selectedPersonIds.length === 0) return new Set();
+    if (candidateVideoIds && candidateVideoIds.length === 0) return new Set();
+    const filters = [
+      eq(videosTable.userId, uid),
+      inArray(videoFacesTable.personId, selectedPersonIds),
+      ...(candidateVideoIds
+        ? [inArray(videoFacesTable.videoId, candidateVideoIds)]
+        : []),
+    ];
+    const rows = await db
+      .select({
+        videoId: videoFacesTable.videoId,
+        personId: videoFacesTable.personId,
+      })
+      .from(videoFacesTable)
+      .innerJoin(videosTable, eq(videoFacesTable.videoId, videosTable.id))
+      .where(and(...filters));
+    const byVideo = new Map<number, Set<number>>();
+    for (const row of rows) {
+      const set = byVideo.get(row.videoId) ?? new Set<number>();
+      set.add(row.personId);
+      byVideo.set(row.videoId, set);
+    }
+    return new Set(
+      [...byVideo]
+        .filter(([, found]) => selectedPersonIds.every((id) => found.has(id)))
+        .map(([videoId]) => videoId),
+    );
+  };
+
+  if (explicitPersonOnly) {
+    onStage?.("person_check");
+    const matchedVideoIds = await faceMatchedVideoIds();
+    let syntheticId = 0;
+    videodbResults = videos
+      .filter((v) => matchedVideoIds.has(v.id))
+      .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+      .map((v) => ({
+        id: --syntheticId,
+        videoId: v.id,
+        videoTitle: v.title,
+        thumbnailUrl: v.thumbnailUrl,
+        videoUrl: v.videoUrl,
+        snippet: `${personNames} ${persons.length === 1 ? "appears" : "appear"} in this video.`,
+        matchType: "person" as const,
+        matchReason: null,
+        timestampSeconds: 0,
+        durationSeconds: v.durationSeconds,
+        people: v.people,
+        recordedAt: v.recordedAt,
+        location: v.location,
+      }));
+    logger.info(
+      {
+        persons: persons.map((p) => p.name),
+        matchedVideos: videodbResults.length,
+      },
+      "Person-only query answered from video_faces",
+    );
+  }
+
+  if (videoByVdbId.size > 0 && !explicitPersonOnly) {
     if (!isVideoDBConfigured()) {
       throw new SearchUnavailableError(
         503,
@@ -276,7 +384,7 @@ export async function runSearchPipeline(
       };
       let spokenShots: InstanceType<typeof SearchResult>["shots"] = [];
       let sceneShots: InstanceType<typeof SearchResult>["shots"] = [];
-      if (!pillOnly) {
+      if (true) {
         // One index erroring (the scene index rejects some short queries)
         // must not sink the turn while the other still has answers.
         const settled = await Promise.allSettled([
@@ -335,7 +443,7 @@ export async function runSearchPipeline(
         ...spokenShots.flatMap((s) => toResult(s, "speech")),
         ...sceneShots.flatMap((s) => toResult(s, "scene")),
       ];
-      if (pillOnly) {
+      if (false) {
         // Candidate set = newest indexed videos, sampled at their midpoint;
         // the face check below decides what survives.
         const names = persons.map((p) => p.name).join(" & ");
@@ -366,7 +474,7 @@ export async function runSearchPipeline(
       // Face confirmation: narrow to one shot per video (retrieval order),
       // cap the set, and keep only candidates where Rekognition confirms
       // EVERY requested person's enrolled FaceId in frames near the moment.
-      if (persons.length > 0 && videodbResults.length > 0) {
+      if (false && persons.length > 0 && videodbResults.length > 0) {
         const seen = new Set<number>();
         const perVideo = videodbResults.filter((r) => {
           if (seen.has(r.videoId)) return false;
@@ -422,6 +530,23 @@ export async function runSearchPipeline(
             );
           }
         }
+      }
+      if (persons.length > 0 && videodbResults.length > 0) {
+        onStage?.("person_check");
+        const matchedVideoIds = await faceMatchedVideoIds([
+          ...new Set(videodbResults.map((r) => r.videoId)),
+        ]);
+        videodbResults = videodbResults.filter((r) =>
+          matchedVideoIds.has(r.videoId),
+        );
+        logger.info(
+          {
+            persons: persons.map((p) => p.name),
+            matchedVideos: matchedVideoIds.size,
+            survivingCandidates: videodbResults.length,
+          },
+          "Person filter applied via video_faces",
+        );
       }
     } catch (err) {
       if (err instanceof SearchUnavailableError) throw err;
@@ -499,16 +624,27 @@ export async function runSearchPipeline(
     matchType: c.matchType,
     timestampSeconds: c.timestampSeconds,
   }));
-  // Pill-only turns skip the rerank: candidates are already face-confirmed
-  // and a bare name gives the reranker nothing to judge relevance against.
-  if (rerankInput.length > 0 && !pillOnly) onStage?.("reranking");
-  const reranked = pillOnly
+  const skipRerank = explicitPersonOnly || intent === "group";
+  if (rerankInput.length > 0 && !skipRerank) onStage?.("reranking");
+  const reranked = skipRerank
     ? null
     : await rerankWithGroq(effectiveQuery, rerankInput);
 
   let ordered: ApiSearchResult[];
   if (reranked) {
-    ordered = reranked.flatMap(({ key, reason }) => {
+    for (const dropped of reranked.dropped) {
+      const c = byKey.get(dropped.key);
+      logger.info(
+        {
+          key: dropped.key,
+          videoTitle: c?.videoTitle,
+          matchType: c?.matchType,
+          reason: dropped.reason,
+        },
+        "Search rerank dropped candidate",
+      );
+    }
+    ordered = reranked.results.flatMap(({ key, reason }) => {
       const c = byKey.get(key);
       return c ? [{ ...c, matchReason: reason || null }] : [];
     });
@@ -623,20 +759,26 @@ export async function runSearchPipeline(
       .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
     if (totalMoments > 0) {
       onStage?.("answering");
-      answer = await generateIntentAnswer(workingQuery, {
-        intent,
-        direction: classified.direction,
-        totalMoments,
-        totalVideos,
-        titleOnlyMatches: shownTitleOnly,
-        matches: results.slice(0, 12).map((r) => ({
-          title: r.videoTitle,
-          date: fmt(dateFor(r.videoId)),
-          snippet: r.snippet.slice(0, 160),
-          matchedBy:
-            r.matchType === "title" ? ("title" as const) : ("content" as const),
-        })),
-      });
+      answer = await generateIntentAnswer(
+        workingQuery,
+        {
+          intent,
+          direction: classified.direction,
+          totalMoments,
+          totalVideos,
+          titleOnlyMatches: shownTitleOnly,
+          matches: results.slice(0, 12).map((r) => ({
+            title: r.videoTitle,
+            date: fmt(dateFor(r.videoId)),
+            snippet: r.snippet.slice(0, 160),
+            matchedBy:
+              r.matchType === "title"
+                ? ("title" as const)
+                : ("content" as const),
+          })),
+        },
+        req.history ?? [],
+      );
     }
     if (!answer) {
       const top =
@@ -672,6 +814,35 @@ export async function runSearchPipeline(
       },
       "Intent-routed search answered",
     );
+  } else if (intent === "search" || intent === "group") {
+    onStage?.("answering");
+    answer = await generateSearchAnswer(
+      workingQuery,
+      {
+        intent,
+        personName:
+          persons.length > 0 ? persons.map((p) => p.name).join(" & ") : null,
+        matches: results.slice(0, 12).map((r) => ({
+          title: r.videoTitle,
+          date: fmt(dateFor(r.videoId)),
+          snippet: r.snippet.slice(0, 220),
+          matchType: r.matchType,
+        })),
+      },
+      req.history ?? [],
+    );
+    if (!answer) {
+      const n = results.length;
+      answer =
+        n === 0
+          ? persons.length > 0
+            ? `I couldn't find any matching moments with ${persons.map((p) => p.name).join(" & ")}.`
+            : "I couldn't find anything matching that in your library."
+          : `I found ${n} matching video${n === 1 ? "" : "s"}: ${results
+              .slice(0, 3)
+              .map((r) => `"${r.videoTitle}"`)
+              .join(", ")}.`;
+    }
   }
 
   return {

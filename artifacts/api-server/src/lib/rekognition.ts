@@ -186,6 +186,17 @@ export async function frameContainsFace(
 export async function matchedFaceIdsInFrame(
   frameBytes: Buffer,
 ): Promise<Set<string>> {
+  const matches = await matchedFacesInFrame(frameBytes);
+  return new Set(matches.keys());
+}
+
+/**
+ * Collection FaceIds that match the largest face in this frame, with AWS
+ * similarity percentages rounded to integers for persisted confidence.
+ */
+export async function matchedFacesInFrame(
+  frameBytes: Buffer,
+): Promise<Map<string, number>> {
   try {
     const out = await withTimeout(
       getClient().send(
@@ -199,15 +210,18 @@ export async function matchedFaceIdsInFrame(
       20_000,
       "Rekognition SearchFacesByImage",
     );
-    return new Set(
-      (out.FaceMatches ?? []).flatMap((m) =>
-        m.Face?.FaceId ? [m.Face.FaceId] : [],
-      ),
-    );
+    const matches = new Map<string, number>();
+    for (const m of out.FaceMatches ?? []) {
+      const faceId = m.Face?.FaceId;
+      if (!faceId) continue;
+      const similarity = Math.round(m.Similarity ?? 0);
+      matches.set(faceId, Math.max(matches.get(faceId) ?? 0, similarity));
+    }
+    return matches;
   } catch (err) {
     if ((err as { name?: string })?.name === "InvalidParameterException") {
       // No face detected in this frame — a normal negative, not an outage.
-      return new Set();
+      return new Map();
     }
     throw toUnavailableIfServiceLevel(err, "SearchFacesByImage");
   }

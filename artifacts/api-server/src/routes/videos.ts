@@ -4,7 +4,13 @@ import { unlink } from "node:fs/promises";
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { and, eq, like } from "drizzle-orm";
-import { db, videosTable, momentsTable, reviewItemsTable } from "@workspace/db";
+import {
+  db,
+  videosTable,
+  momentsTable,
+  reviewItemsTable,
+  videoFacesTable,
+} from "@workspace/db";
 import {
   ListVideosQueryParams,
   ListVideosResponse,
@@ -44,6 +50,7 @@ import {
   USER_MATCH_SENTINEL,
 } from "../lib/ingestion";
 import { currentUserId } from "../lib/auth";
+import { enqueueFaceIndexForVideo } from "../lib/videoFaceIndex";
 
 const router: IRouter = Router();
 
@@ -506,6 +513,7 @@ router.post("/videos/:id/confirm-language", async (req, res): Promise<void> => {
     .set({ status: stillPending.length > 0 ? "flagged" : "indexed" })
     .where(eq(videosTable.id, video.id))
     .returning();
+  if (updated?.status === "indexed") enqueueFaceIndexForVideo(updated.id);
 
   res.json(
     ConfirmVideoLanguageResponse.parse({
@@ -625,6 +633,9 @@ router.delete("/videos/:id", async (req, res): Promise<void> => {
     await tx
       .delete(reviewItemsTable)
       .where(eq(reviewItemsTable.videoId, params.data.id));
+    await tx
+      .delete(videoFacesTable)
+      .where(eq(videoFacesTable.videoId, params.data.id));
     await tx.delete(videosTable).where(eq(videosTable.id, params.data.id));
   });
   res.sendStatus(204);
