@@ -572,177 +572,329 @@ export default function Home() {
         .float-anim { animation: bob 6s ease-in-out infinite; }
         .float-anim.d1 { animation-delay: 0.8s; }
         .float-anim.d2 { animation-delay: 1.6s; }
+
+        /* ── Process section (How It Works) ─────────────────────── */
+        .process { display:flex; flex-direction:column; gap:110px; max-width:1080px; margin:0 auto; }
+        .p-row { display:flex; align-items:center; gap:70px; position:relative; }
+        .p-row.rev { flex-direction:row-reverse; }
+        .p-text { flex:0 0 380px; position:relative; z-index:2; }
+        .p-visual { flex:1; position:relative; min-height:260px; display:flex; align-items:center; justify-content:center; }
+        .p-icon {
+          width:46px; height:46px; border-radius:13px; margin-bottom:20px;
+          display:flex; align-items:center; justify-content:center;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 12px 22px -10px rgba(0,0,0,0.35);
+        }
+        .p-icon svg { width:22px; height:22px; }
+        .p-text h3 { font-size:23px; font-weight:800; letter-spacing:-0.015em; margin-bottom:11px; line-height:1.25; color:#14140f; }
+        .p-text p { font-size:14.5px; color:#55554d; line-height:1.65; }
+        .p-tech {
+          display:inline-flex; align-items:center; gap:6px; margin-top:16px;
+          font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:600; color:#1c8a3e;
+          background:rgba(28,138,62,0.08); border:1px solid rgba(28,138,62,0.18);
+          padding:5px 12px; border-radius:999px;
+        }
+        .p-ghost {
+          position:absolute; z-index:0; font-family:'JetBrains Mono', monospace; font-weight:700;
+          font-size:150px; color:#14140f; opacity:0.045; line-height:1; user-select:none; pointer-events:none;
+          top:50%; left:50%; transform:translate(-50%,-50%);
+        }
+        .p-blob { position:absolute; z-index:0; border-radius:50%; filter:blur(36px); opacity:0.5; pointer-events:none; }
+        .mock {
+          position:relative; z-index:1; width:280px; background:#fff; border-radius:16px;
+          border:1px solid rgba(20,20,15,0.10); box-shadow:0 30px 60px -22px rgba(0,0,0,0.28);
+          padding:18px;
+        }
+        .mock .mhead { display:flex; align-items:center; gap:6px; margin-bottom:14px; }
+        .mock .mdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+        .mock .mtitle { font-size:10.5px; font-weight:700; color:#9a9a90; margin-left:4px; }
+        .mock-drop { border:1.5px dashed rgba(20,20,15,0.25); border-radius:11px; padding:18px 10px; text-align:center; }
+        .mock-drop .mu-icon { width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg,#1c8a3e,#0e5024); margin:0 auto 8px; display:flex; align-items:center; justify-content:center; }
+        .mock-drop .mu-icon svg { width:15px; height:15px; }
+        .mock-drop span { font-size:11px; font-weight:700; color:#55554d; display:block; }
+        .mock-drop .fname { margin-top:10px; background:#f4f4f2; border-radius:8px; padding:6px 8px; font-size:9.5px; text-align:left; color:#55554d; font-family:'JetBrains Mono',monospace; }
+        .mock-flag { background:#f4f4f2; border-radius:11px; padding:12px; display:flex; gap:10px; align-items:center; }
+        .mock-flag .fthumb { width:38px; height:38px; border-radius:8px; background:linear-gradient(135deg,#2a2a24,#0c0c08); flex-shrink:0; }
+        .mock-flag .fbody { flex:1; min-width:0; }
+        .mock-flag .flabel { font-size:9px; font-weight:700; color:#c26a1a; background:#fdf0e2; display:inline-block; padding:2px 7px; border-radius:5px; margin-bottom:4px; }
+        .mock-flag .freason { font-size:9.5px; color:#55554d; }
+        .mock-actions { display:flex; gap:6px; margin-top:12px; }
+        .mock-actions .ma { flex:1; text-align:center; font-size:9.5px; font-weight:700; padding:7px 0; border-radius:8px; cursor:default; }
+        .mock-actions .ma.accept { background:linear-gradient(180deg,#414141,#030303); color:#fff; }
+        .mock-actions .ma.discard { background:#eee; color:#555; }
+        .mock-dual { display:flex; gap:8px; }
+        .mock-dual .col { flex:1; background:#f4f4f2; border-radius:10px; padding:10px; }
+        .mock-dual .col-label { font-size:8.5px; font-weight:700; color:#9a9a90; margin-bottom:8px; }
+        .mock-wave { display:flex; align-items:flex-end; gap:2px; height:26px; }
+        .mock-wave span { width:3px; background:#1c8a3e; border-radius:2px; }
+        .mock-scene-txt { font-size:9px; color:#55554d; line-height:1.5; font-style:italic; }
+        .mock-face { display:flex; align-items:center; gap:10px; }
+        .mock-avatar { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#d8503f,#8f2a1f); flex-shrink:0; border:2px solid #fff; box-shadow:0 0 0 1px rgba(20,20,15,0.10); }
+        .mock-tl { flex:1; }
+        .mock-tl .mtl-label { font-size:9px; font-weight:700; color:#55554d; margin-bottom:6px; }
+        .mock-tl-bar { height:8px; border-radius:5px; background:#eee; position:relative; overflow:hidden; }
+        .mock-tl-bar span { position:absolute; top:0; bottom:0; background:#1c8a3e; border-radius:5px; }
+        .mock-chat { display:flex; flex-direction:column; gap:8px; }
+        .mock-bubble { font-size:10px; padding:8px 11px; border-radius:12px; max-width:88%; line-height:1.4; }
+        .mock-bubble.user { align-self:flex-end; background:linear-gradient(180deg,#414141,#030303); color:#fff; border-bottom-right-radius:3px; }
+        .mock-bubble.ai { align-self:flex-start; background:#f4f4f2; color:#55554d; border-bottom-left-radius:3px; }
+        .mock-chips { display:flex; gap:5px; flex-wrap:wrap; margin-top:2px; }
+        .mock-chip { font-size:8.5px; font-weight:700; padding:4px 9px; border-radius:999px; background:#eee; color:#999; }
+        .mock-chip.active { background:rgba(28,138,62,0.12); color:#1c8a3e; border:1px solid rgba(28,138,62,0.3); }
+        .mock-trim .mtrim-track { height:6px; border-radius:4px; background:#eee; position:relative; margin:16px 0 10px; }
+        .mock-trim .mtrim-sel { position:absolute; top:0; bottom:0; background:#14140f; border-radius:4px; }
+        .mock-trim .mtrim-handle { position:absolute; top:50%; width:12px; height:12px; border-radius:50%; background:#fff; border:2px solid #14140f; transform:translate(-50%,-50%); }
+        .mock-trim .mtrim-btn { text-align:center; font-size:10px; font-weight:700; background:linear-gradient(180deg,#414141,#030303); color:#fff; padding:8px 0; border-radius:9px; }
+
+        /* ── Why Recall cards ───────────────────────────────────── */
+        .why-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+        .why-card { background:#fff; border-radius:16px; padding:24px; border:1px solid rgba(20,20,15,0.10); box-shadow:0 10px 26px -14px rgba(0,0,0,0.10); }
+        .why-card .ic { width:38px; height:38px; border-radius:10px; margin-bottom:14px; display:flex; align-items:center; justify-content:center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 8px 16px -8px rgba(0,0,0,0.3); }
+        .why-card .ic svg { width:18px; height:18px; }
+        .why-card h3 { font-size:16px; font-weight:800; margin-bottom:8px; color:#14140f; }
+        .why-card p { font-size:13.5px; color:#55554d; line-height:1.55; }
+
+        @media (max-width: 900px) {
+          .p-row, .p-row.rev { flex-direction:column; gap:34px; }
+          .p-text { flex:none; text-align:center; }
+          .p-tech { margin-left:auto; margin-right:auto; }
+          .p-ghost { font-size:100px; }
+          .why-grid { grid-template-columns:1fr 1fr; }
+        }
+        @media (max-width: 560px) {
+          .why-grid { grid-template-columns:1fr; }
+        }
       `}</style>
     </div>
   );
 }
 
-/** Advanced "How It Works" section with scroll-triggered animations. */
+/** How It Works — six alternating rows, each with icon badge, ghost numeral, color blob, and mini mockup. */
 function HowItWorks() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
-
-  const steps = [
-    {
-      num: "01",
-      title: "Bring your videos",
-      body: "Drag in a folder, connect Google Photos, or pull from your YouTube channel — all in one batch.",
-      icon: FileVideo,
-      color: "#1c8a3e",
-    },
-    {
-      num: "02",
-      title: "We index everything",
-      body: "Every video is understood two ways at once — what was said, and what was visually happening.",
-      icon: Brain,
-      color: "#3b82f6",
-    },
-    {
-      num: "03",
-      title: "You stay in control",
-      body: "Anything sensitive is quietly set aside for your review — nothing searchable without your say-so.",
-      icon: Shield,
-      color: "#a855f7",
-    },
-    {
-      num: "04",
-      title: "Just ask",
-      body: "Type what you remember, in plain language, and get back the exact clip and moment.",
-      icon: SearchIconLucide,
-      color: "#ec4899",
-    },
-  ];
-
   return (
-    <section id="how" className="px-6 py-24 md:py-32 max-w-[1200px] mx-auto overflow-hidden">
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={inView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="text-center mb-16 md:mb-20"
-        ref={ref}
-      >
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-bold text-[#1c8a3e] bg-white border border-[rgba(20,20,15,0.08)] shadow-sm mb-4">
-          <Sparkles className="w-3.5 h-3.5" />
-          HOW IT WORKS
-        </span>
-        <h2 className="text-[30px] md:text-[44px] font-extrabold tracking-[-0.02em] text-[#14140f] max-w-[680px] mx-auto leading-tight">
-          From a folder of unsearchable footage to one search bar.
-        </h2>
-      </motion.div>
+    <section id="how" style={{ padding: "90px 24px", maxWidth: 1100, margin: "0 auto" }}>
+      <p className="font-mono text-[12px] font-bold text-center text-[#1c8a3e] tracking-[0.04em] mb-2.5">THE MECHANISM</p>
+      <h2 style={{ fontSize: 38, fontWeight: 800, letterSpacing: "-0.02em", textAlign: "center", maxWidth: 640, margin: "0 auto 50px", lineHeight: 1.2, color: "#14140f" }}>
+        Not a search bar bolted onto a video player. A real pipeline.
+      </h2>
 
-      <div className="relative">
-        {/* Connecting gradient line */}
-        <div className="hidden lg:block absolute top-[88px] left-[12.5%] right-[12.5%] h-0.5 bg-gradient-to-r from-[#1c8a3e] via-[#3b82f6] to-[#ec4899] opacity-20 rounded-full" />
+      <div className="process">
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {steps.map((step, i) => (
-            <motion.div
-              key={step.num}
-              initial={{ opacity: 0, y: 40 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: 0.1 + i * 0.12, ease: "easeOut" }}
-            >
-              <div className="group relative h-full bg-white rounded-[22px] p-6 border border-[rgba(20,20,15,0.08)] hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.15)] hover:-translate-y-1.5 transition-all duration-300">
-                <div
-                  className="w-12 h-12 rounded-[14px] flex items-center justify-center mb-5 text-white shadow-lg"
-                  style={{ background: `linear-gradient(135deg, ${step.color}, ${step.color}dd)` }}
-                >
-                  <step.icon className="w-5 h-5" />
-                </div>
-                <p className="font-mono text-[12px] font-bold mb-2" style={{ color: step.color }}>
-                  {step.num}
-                </p>
-                <h3 className="text-[18px] md:text-[20px] font-extrabold text-[#14140f] mb-3">{step.title}</h3>
-                <p className="text-[14px] text-[#55554d] leading-relaxed">{step.body}</p>
-
-                {/* Glow on hover */}
-                <div
-                  className="absolute inset-0 rounded-[22px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10"
-                  style={{ background: `radial-gradient(circle at 50% 0%, ${step.color}15, transparent 70%)` }}
-                />
+        {/* 01 — Ingest */}
+        <div className="p-row">
+          <div className="p-text">
+            <div className="p-icon" style={{ background: "linear-gradient(135deg,#1c8a3e,#0e5024)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 15V3m0 0 4 4m-4-4L8 7"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            </div>
+            <h3>Ingest, in one batch</h3>
+            <p>Drag in a folder, connect Google Photos, or pull from your YouTube channel. Every video processes independently — one flagged or failed file never blocks the rest.</p>
+            <span className="p-tech">Batch upload · async pipeline</span>
+          </div>
+          <div className="p-visual">
+            <div className="p-ghost">01</div>
+            <div className="p-blob" style={{ width: 260, height: 260, background: "#1c8a3e", top: "50%", left: "60%", transform: "translate(-50%,-50%)" }} />
+            <div className="mock" style={{ transform: "rotate(-2deg)" }}>
+              <div className="mhead">
+                <div className="mdot" style={{ background: "#ff5f57" }} />
+                <div className="mdot" style={{ background: "#febc2e" }} />
+                <div className="mdot" style={{ background: "#28c840" }} />
               </div>
-            </motion.div>
-          ))}
+              <div className="mock-drop">
+                <div className="mu-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M12 16V4m0 0 4 4m-4-4-4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                </div>
+                <span>Drop videos or select a folder</span>
+                <div className="fname">✓ 43 files queued</div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* 02 — Privacy scan */}
+        <div className="p-row rev">
+          <div className="p-text">
+            <div className="p-icon" style={{ background: "linear-gradient(135deg,#5b4bda,#332a8a)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5l-8-3Z"/></svg>
+            </div>
+            <h3>Privacy scan, before anything's searchable</h3>
+            <p>Every video is checked against baseline sensitive categories, plus anything you personally rule out. Flagged content waits quietly for your review.</p>
+            <span className="p-tech">Scene-index sensitivity pass</span>
+          </div>
+          <div className="p-visual">
+            <div className="p-ghost">02</div>
+            <div className="p-blob" style={{ width: 240, height: 240, background: "#5b4bda", top: "50%", left: "40%", transform: "translate(-50%,-50%)" }} />
+            <div className="mock" style={{ transform: "rotate(2deg)" }}>
+              <div className="mhead"><span className="mtitle">NEEDS REVIEW</span></div>
+              <div className="mock-flag">
+                <div className="fthumb" />
+                <div className="fbody">
+                  <div className="flabel">FLAGGED</div>
+                  <div className="freason">Visible screen content detected</div>
+                </div>
+              </div>
+              <div className="mock-actions">
+                <div className="ma accept">Accept</div>
+                <div className="ma discard">Discard</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 03 — Dual index */}
+        <div className="p-row">
+          <div className="p-text">
+            <div className="p-icon" style={{ background: "linear-gradient(135deg,#d8503f,#8f2a1f)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/></svg>
+            </div>
+            <h3>Understood two ways at once</h3>
+            <p>VideoDB indexes what was <em>said</em> — full transcript, 97 languages — and what was <em>visually happening</em>, separately. A silent screen recording stays fully searchable.</p>
+            <span className="p-tech">VideoDB spoken-word + scene indexing</span>
+          </div>
+          <div className="p-visual">
+            <div className="p-ghost">03</div>
+            <div className="p-blob" style={{ width: 250, height: 250, background: "#d8503f", top: "50%", left: "55%", transform: "translate(-50%,-50%)" }} />
+            <div className="mock" style={{ transform: "rotate(-1.5deg)", width: 300 }}>
+              <div className="mhead"><span className="mtitle">DUAL INDEX</span></div>
+              <div className="mock-dual">
+                <div className="col">
+                  <div className="col-label">SPOKEN</div>
+                  <div className="mock-wave">
+                    <span style={{ height: 6 }} /><span style={{ height: 14 }} /><span style={{ height: 9 }} />
+                    <span style={{ height: 18 }} /><span style={{ height: 7 }} /><span style={{ height: 12 }} />
+                    <span style={{ height: 16 }} /><span style={{ height: 5 }} />
+                  </div>
+                </div>
+                <div className="col">
+                  <div className="col-label">VISUAL</div>
+                  <div className="mock-scene-txt">"…two people laughing near a kitchen counter…"</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 04 — Face timelines */}
+        <div className="p-row rev">
+          <div className="p-text">
+            <div className="p-icon" style={{ background: "linear-gradient(135deg,#e0b13f,#a3760f)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            </div>
+            <h3>Faces become timelines, not tags</h3>
+            <p>Enroll a person once. Every video is sampled frame-by-frame and checked against them — confirmed appearances merge into real timestamp ranges.</p>
+            <span className="p-tech">AWS Rekognition + VideoDB frame extraction</span>
+          </div>
+          <div className="p-visual">
+            <div className="p-ghost">04</div>
+            <div className="p-blob" style={{ width: 240, height: 240, background: "#e0b13f", top: "50%", left: "40%", transform: "translate(-50%,-50%)" }} />
+            <div className="mock" style={{ transform: "rotate(1.5deg)" }}>
+              <div className="mhead"><span className="mtitle">PERSON MATCH</span></div>
+              <div className="mock-face">
+                <div className="mock-avatar" />
+                <div className="mock-tl">
+                  <div className="mtl-label">arjun · 3 appearances</div>
+                  <div className="mock-tl-bar">
+                    <span style={{ left: "8%", width: "14%" }} />
+                    <span style={{ left: "40%", width: "20%" }} />
+                    <span style={{ left: "75%", width: "12%" }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 05 — Intent routing */}
+        <div className="p-row">
+          <div className="p-text">
+            <div className="p-icon" style={{ background: "linear-gradient(135deg,#2a9fd8,#1a5f8a)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 2a5 5 0 0 0-5 5c0 2 1 3 1 5v2h8v-2c0-2 1-3 1-5a5 5 0 0 0-5-5Z"/><path d="M9 19h6M10 22h4"/></svg>
+            </div>
+            <h3>It figures out what you're actually asking</h3>
+            <p>Before retrieving anything, an LLM classifies your question — find a clip, count something, ask when something last happened, or list every match.</p>
+            <span className="p-tech">Groq intent classification</span>
+          </div>
+          <div className="p-visual">
+            <div className="p-ghost">05</div>
+            <div className="p-blob" style={{ width: 250, height: 250, background: "#2a9fd8", top: "50%", left: "55%", transform: "translate(-50%,-50%)" }} />
+            <div className="mock" style={{ transform: "rotate(-2deg)", width: 290 }}>
+              <div className="mhead"><span className="mtitle">CHAT</span></div>
+              <div className="mock-chat">
+                <div className="mock-bubble user">how many times did I mention HydraDB?</div>
+                <div className="mock-bubble ai">Classifying intent…</div>
+                <div className="mock-chips">
+                  <div className="mock-chip">search</div>
+                  <div className="mock-chip active">count</div>
+                  <div className="mock-chip">recency</div>
+                  <div className="mock-chip">group</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 06 — Rerank & export */}
+        <div className="p-row rev">
+          <div className="p-text">
+            <div className="p-icon" style={{ background: "linear-gradient(135deg,#1c1c1c,#000)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="m20 4-9.5 9.5M20 20 6 8.5"/></svg>
+            </div>
+            <h3>Reranked, grounded, and exportable</h3>
+            <p>Results from both indexes are reranked for true relevance and answered in real language — not a template. Trim the exact moment and export the clip.</p>
+            <span className="p-tech">LLM rerank · trim &amp; export</span>
+          </div>
+          <div className="p-visual">
+            <div className="p-ghost">06</div>
+            <div className="p-blob" style={{ width: 240, height: 240, background: "#1c1c1c", opacity: 0.3, top: "50%", left: "40%", transform: "translate(-50%,-50%)" }} />
+            <div className="mock mock-trim" style={{ transform: "rotate(2deg)" }}>
+              <div className="mhead"><span className="mtitle">TRIM &amp; EXPORT</span></div>
+              <div className="mtrim-track">
+                <div className="mtrim-sel" style={{ left: "35%", width: "30%" }} />
+                <div className="mtrim-handle" style={{ left: "35%" }} />
+                <div className="mtrim-handle" style={{ left: "65%" }} />
+              </div>
+              <div className="mtrim-btn">Export clip</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
   );
 }
 
-/** Advanced "Why Recall" section with bright, light SaaS cards. */
+/** Why Recall — three cards with gradient icon badges (green, gold, indigo). */
 function WhyRecall() {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
-
-  const cards = [
-    {
-      title: "Video is unsearchable by default",
-      body: "Notes and docs are trivial to search. A thousand personal videos are not — until now.",
-      icon: FileVideo,
-      gradient: "linear-gradient(135deg, #1c8a3e, #0e5024)",
-      bg: "radial-gradient(circle at 50% 0%, rgba(28,138,62,0.12), transparent 60%)",
-    },
-    {
-      title: "Understands what happened, not just what was said",
-      body: "Even silent clips and screen recordings are searchable by what's visually in them.",
-      icon: Brain,
-      gradient: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
-      bg: "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.12), transparent 60%)",
-    },
-    {
-      title: "Private by design",
-      body: "Sensitive moments are flagged before they're ever searchable — you decide what stays.",
-      icon: Shield,
-      gradient: "linear-gradient(135deg, #a855f7, #7e22ce)",
-      bg: "radial-gradient(circle at 50% 0%, rgba(168,85,247,0.12), transparent 60%)",
-    },
-  ];
-
   return (
-    <section className="px-6 py-24 md:py-32 max-w-[1200px] mx-auto overflow-hidden">
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={inView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="text-center mb-16 md:mb-20"
-        ref={ref}
-      >
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-bold text-[#3b82f6] bg-white border border-[rgba(20,20,15,0.08)] shadow-sm mb-4">
-          <Mic2 className="w-3.5 h-3.5" />
-          WHY RECALL
-        </span>
-        <h2 className="text-[30px] md:text-[44px] font-extrabold tracking-[-0.02em] text-[#14140f] max-w-[720px] mx-auto leading-tight">
-          Text got a second brain years ago. <span className="text-[#3b82f6]">Video never did.</span>
-        </h2>
-      </motion.div>
+    <section style={{ padding: "90px 24px", maxWidth: 1100, margin: "0 auto" }}>
+      <p className="font-mono text-[12px] font-bold text-center text-[#1c8a3e] tracking-[0.04em] mb-2.5">WHY RECALL</p>
+      <h2 style={{ fontSize: 38, fontWeight: 800, letterSpacing: "-0.02em", textAlign: "center", maxWidth: 640, margin: "0 auto 50px", lineHeight: 1.2, color: "#14140f" }}>
+        Text got a second brain years ago. Video never did.
+      </h2>
+      <div className="why-grid">
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {cards.map((card, i) => (
-          <motion.div
-            key={card.title}
-            initial={{ opacity: 0, y: 40, scale: 0.96 }}
-            animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
-            transition={{ duration: 0.55, delay: 0.15 + i * 0.12, ease: "easeOut" }}
-          >
-            <div
-              className="group relative h-full rounded-[24px] p-7 border border-[rgba(20,20,15,0.08)] hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.18)] hover:-translate-y-2 transition-all duration-300 overflow-hidden"
-              style={{ background: "#fff" }}
-            >
-              {/* Soft gradient glow behind the card */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" style={{ background: card.bg }} />
+        <div className="why-card">
+          <div className="ic" style={{ background: "linear-gradient(135deg,#1c8a3e,#0e5024)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M15 10l4.55-2.1A1 1 0 0 1 21 8.8V15.2a1 1 0 0 1-1.45.9L15 14"/><rect x="2" y="7" width="13" height="10" rx="2"/></svg>
+          </div>
+          <h3>Video was never searchable by default</h3>
+          <p>A thousand personal videos aren't trivial to search like a folder of notes — until every frame and word is actually indexed, not just filed by name.</p>
+        </div>
 
-              <div
-                className="w-14 h-14 rounded-[16px] flex items-center justify-center mb-5 text-white shadow-lg"
-                style={{ background: card.gradient }}
-              >
-                <card.icon className="w-6 h-6" />
-              </div>
-              <h3 className="text-[19px] md:text-[21px] font-extrabold text-[#14140f] mb-3 leading-snug">{card.title}</h3>
-              <p className="text-[14.5px] text-[#55554d] leading-relaxed">{card.body}</p>
-            </div>
-          </motion.div>
-        ))}
+        <div className="why-card">
+          <div className="ic" style={{ background: "linear-gradient(135deg,#e0b13f,#a3760f)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          </div>
+          <h3>Confirms who's actually there</h3>
+          <p>Not a guess based on a name mentioned nearby — a real, face-confirmed timeline of where a specific person actually appears on screen.</p>
+        </div>
+
+        <div className="why-card">
+          <div className="ic" style={{ background: "linear-gradient(135deg,#5b4bda,#332a8a)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 2 4 5v6c0 5 3.4 8.4 8 11 4.6-2.6 8-6 8-11V5l-8-3Z"/></svg>
+          </div>
+          <h3>Trustworthy, not just confident</h3>
+          <p>When there's no real match, it says so — rather than forcing a plausible-sounding answer to a question it can't actually answer.</p>
+        </div>
+
       </div>
     </section>
   );
