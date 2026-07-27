@@ -426,7 +426,7 @@ export default function Home() {
             }}
           >
             <CheckCircle className="w-3.5 h-3.5 text-[#1c8a3e]" />
-            For your gallery, Google Photos, or YouTube
+            For your files, folders, and links
           </span>
 
           <h1 className="text-[32px] sm:text-[38px] md:text-[52px] font-extrabold tracking-[-0.03em] leading-[1.08] text-[#14140f]">
@@ -686,7 +686,7 @@ function HowItWorks() {
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 15V3m0 0 4 4m-4-4L8 7"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
             </div>
             <h3>Ingest, in one batch</h3>
-            <p>Drag in a folder, connect Google Photos, or pull from your YouTube channel. Every video processes independently — one flagged or failed file never blocks the rest.</p>
+            <p>Drag in a folder or paste a direct link. Every video processes independently — one flagged or failed file never blocks the rest.</p>
             <span className="p-tech">Batch upload · async pipeline</span>
           </div>
           <div className="p-visual">
